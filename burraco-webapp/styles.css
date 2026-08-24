@@ -1,0 +1,256 @@
+/* ── Palette ─────────────────────────────────────────────────
+   Panno da circolo: verde salvia chiaro / verde inchiostro scuro.
+   Le carte restano carta in entrambi i temi. Accento ottone.  */
+:root{
+  --table-1:#C9D0BE; --table-2:#A8B398;
+  --ink:#1B231D; --ink-soft:#4E5A4D; --ink-faint:#77826F;
+  --panel:#F3F2EA; --panel-2:#E7E6DA; --edge:#CBC8B6;
+  --card-face:#FCFAF3; --card-edge:#D5D0BE; --card-ink:#211E19;
+  --card-back-1:#8E3B33; --card-back-2:#6B2A24;
+  --red:#A72820; --accent:#8A6014; --accent-2:#B98C2C;
+  --accent-soft:#EBDCB4; --good:#2C6B51; --warn:#9A5A16;
+  --shadow:rgba(31,38,30,.22);
+  --slot:rgba(27,35,29,.10);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --table-1:#182720; --table-2:#0C1611;
+    --ink:#E9E8DE; --ink-soft:#A6AE9F; --ink-faint:#7D8779;
+    --panel:#16201A; --panel-2:#1D2921; --edge:#2E3E33;
+    --card-face:#EDEADE; --card-edge:#AFA995; --card-ink:#1A1713;
+    --card-back-1:#7C332C; --card-back-2:#511F1B;
+    --red:#B3352C; --accent:#C79A44; --accent-2:#E0B662;
+    --accent-soft:#3A3122; --good:#4E9C77; --warn:#C2853A;
+    --shadow:rgba(0,0,0,.5);
+    --slot:rgba(233,232,222,.07);
+  }
+}
+:root[data-theme="dark"]{
+  --table-1:#182720; --table-2:#0C1611;
+  --ink:#E9E8DE; --ink-soft:#A6AE9F; --ink-faint:#7D8779;
+  --panel:#16201A; --panel-2:#1D2921; --edge:#2E3E33;
+  --card-face:#EDEADE; --card-edge:#AFA995; --card-ink:#1A1713;
+  --card-back-1:#7C332C; --card-back-2:#511F1B;
+  --red:#B3352C; --accent:#C79A44; --accent-2:#E0B662;
+  --accent-soft:#3A3122; --good:#4E9C77; --warn:#C2853A;
+  --shadow:rgba(0,0,0,.5);
+  --slot:rgba(233,232,222,.07);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; color:var(--ink);
+  background:var(--table-2);
+  background-image:radial-gradient(120% 90% at 50% 0%, var(--table-1) 0%, var(--table-2) 78%);
+  background-attachment:fixed;
+  font-family:Archivo,"Segoe UI",system-ui,sans-serif;
+  font-size:15px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{margin:0; text-wrap:balance; font-weight:600}
+button{font:inherit; color:inherit}
+:focus-visible{outline:2px solid var(--accent-2); outline-offset:2px; border-radius:3px}
+
+.wrap{max-width:1240px; margin:0 auto; padding:18px 16px 28px; display:flex; flex-direction:column; gap:14px}
+
+/* ── Testata ───────────────────────────────────────────────── */
+header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
+.brand h1{
+  font-family:"Bodoni Moda",Didot,Georgia,serif; font-weight:700;
+  font-size:clamp(26px,4.4vw,40px); letter-spacing:-.01em; line-height:1;
+}
+.brand p{margin:4px 0 0; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint)}
+.top-actions{margin-left:auto; display:flex; gap:8px; flex-wrap:wrap}
+
+.btn{
+  border:1px solid var(--edge); background:var(--panel); color:var(--ink);
+  padding:8px 14px; border-radius:2px; cursor:pointer; font-size:13px; font-weight:500;
+  letter-spacing:.02em; transition:background .15s,border-color .15s,transform .1s;
+}
+.btn:hover:not(:disabled){border-color:var(--accent); background:var(--panel-2)}
+.btn:active:not(:disabled){transform:translateY(1px)}
+.btn:disabled{opacity:.42; cursor:not-allowed}
+.btn.primary{background:var(--accent); border-color:var(--accent); color:#FBF8EF; font-weight:600}
+:root[data-theme="dark"] .btn.primary,
+:root:not([data-theme="light"]) .btn.primary{color:#14100A}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .btn.primary{color:#FBF8EF}}
+.btn.primary:hover:not(:disabled){background:var(--accent-2); border-color:var(--accent-2)}
+.btn.ghost{background:transparent}
+
+/* ── Impianto ──────────────────────────────────────────────── */
+.layout{display:grid; grid-template-columns:minmax(0,1fr) 306px; gap:14px; align-items:start}
+@media (max-width:1000px){.layout{grid-template-columns:minmax(0,1fr)}}
+
+.panel{background:var(--panel); border:1px solid var(--edge); border-radius:3px; box-shadow:0 1px 0 var(--shadow)}
+.board{padding:14px; display:flex; flex-direction:column; gap:14px}
+
+.seat-label{
+  display:flex; align-items:baseline; gap:8px; margin-bottom:6px;
+  font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-faint);
+}
+.seat-label b{font-size:13px; letter-spacing:.04em; text-transform:none; color:var(--ink); font-weight:600}
+.chip{
+  font-size:10px; letter-spacing:.1em; text-transform:uppercase; padding:2px 7px;
+  border:1px solid var(--edge); border-radius:999px; color:var(--ink-soft); background:var(--panel-2);
+}
+.chip.on{border-color:var(--accent); color:var(--accent); background:var(--accent-soft)}
+.chip.turn{border-color:var(--good); color:var(--good); background:transparent}
+
+.zone{border-top:1px solid var(--edge); padding-top:12px}
+.zone:first-child{border-top:none; padding-top:0}
+
+/* ── Carte ─────────────────────────────────────────────────── */
+.card{
+  position:relative; flex:0 0 auto;
+  width:var(--cw,56px); height:calc(var(--cw,56px)*1.42);
+  background:var(--card-face); color:var(--card-ink);
+  border:1px solid var(--card-edge); border-radius:4px;
+  box-shadow:0 1px 2px var(--shadow);
+  font-family:"Bodoni Moda",Didot,Georgia,serif;
+  display:flex; flex-direction:column; justify-content:space-between;
+  padding:3px 4px; user-select:none;
+}
+.card .r{font-size:calc(var(--cw,56px)*.30); font-weight:600; line-height:1}
+.card .s{font-size:calc(var(--cw,56px)*.26); line-height:1; align-self:flex-end}
+.card.red{color:var(--red)}
+.card.jolly{color:var(--accent)}
+.card.jolly .r{font-size:calc(var(--cw,56px)*.30)}
+.card.wild::after{
+  content:""; position:absolute; inset:0; border-radius:4px;
+  border:1px dashed var(--accent); opacity:.85; pointer-events:none;
+}
+.card.back{
+  background:
+    repeating-linear-gradient(45deg, transparent 0 3px, rgba(255,255,255,.10) 3px 6px),
+    linear-gradient(160deg, var(--card-back-1), var(--card-back-2));
+  border-color:var(--card-back-2);
+}
+
+.hand{display:flex; gap:6px; flex-wrap:wrap; --cw:60px}
+.hand .card{cursor:pointer; transition:transform .13s, box-shadow .13s, border-color .13s}
+.hand .card:hover{transform:translateY(-7px)}
+.hand .card.sel{
+  transform:translateY(-12px); border-color:var(--accent);
+  box-shadow:0 6px 14px var(--shadow), 0 0 0 2px var(--accent);
+}
+.deal .card{animation:deal .4s cubic-bezier(.2,.8,.3,1) backwards; animation-delay:calc(var(--i)*38ms)}
+@keyframes deal{from{opacity:0; transform:translateY(26px) rotate(-5deg)}}
+@media (prefers-reduced-motion:reduce){
+  .deal .card{animation:none}
+  .hand .card:hover{transform:none}
+  *{transition-duration:.01ms !important}
+}
+
+/* ── Giochi calati ─────────────────────────────────────────── */
+.melds{display:flex; gap:10px; flex-wrap:wrap; min-height:66px; align-items:flex-start}
+.meld{
+  --cw:36px; padding:6px 8px 5px; border:1px solid var(--edge); border-radius:3px;
+  background:var(--panel-2); display:flex; flex-direction:column; gap:4px;
+}
+.meld .row{display:flex}
+.meld .row .card+.card{margin-left:-11px}
+.meld .card{padding:2px 3px}
+.meld .card .s{align-self:flex-start}
+.meld .tag{font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-faint); display:flex; gap:6px; align-items:center}
+.meld .tag .b{font-weight:700; letter-spacing:.05em}
+.meld .tag .b.pulito{color:var(--good)} .meld .tag .b.semipulito{color:var(--accent)} .meld .tag .b.sporco{color:var(--warn)}
+.meld.target{cursor:pointer; border-color:var(--accent); box-shadow:0 0 0 1px var(--accent)}
+.meld.target:hover{background:var(--accent-soft)}
+.empty-note{font-size:12.5px; color:var(--ink-faint); font-style:italic; padding:6px 0}
+
+/* ── Centro tavolo ─────────────────────────────────────────── */
+.center{
+  display:flex; gap:16px; align-items:center; flex-wrap:wrap; justify-content:center;
+  padding:12px; border:1px solid var(--edge); border-radius:3px; background:var(--panel-2);
+}
+.pile{display:flex; flex-direction:column; align-items:center; gap:6px; --cw:56px}
+.pile .cap{font-size:10.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--ink-faint); text-align:center}
+.pile .cap b{display:block; font-size:15px; letter-spacing:0; color:var(--ink); font-variant-numeric:tabular-nums}
+.pile.click{cursor:pointer}
+.pile.click .card{transition:transform .13s, box-shadow .13s}
+.pile.click:hover .card{transform:translateY(-5px); box-shadow:0 7px 15px var(--shadow)}
+.pile.dim{opacity:.4}
+.pozzetti{display:flex; gap:16px}
+.state{
+  flex:1 1 190px; min-width:170px; align-self:stretch; display:flex; flex-direction:column;
+  justify-content:center; gap:5px; padding:2px 4px;
+}
+.state .now{font-family:"Bodoni Moda",Georgia,serif; font-size:17px; line-height:1.2}
+.state .step{font-size:12.5px; color:var(--ink-soft)}
+.state ul{margin:2px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:2px}
+.state li{font-size:11.5px; color:var(--ink-faint); display:flex; gap:6px; align-items:baseline}
+.state li i{font-style:normal; width:11px; color:var(--ink-faint)}
+.state li.done{color:var(--good)}
+.state li.done i{color:var(--good)}
+@media (max-width:600px){
+  .state{flex:1 1 100%; min-width:0}
+  .center{gap:12px 18px; padding:10px}
+  .pile{--cw:50px}
+  .hand{--cw:52px; gap:5px}
+}
+.slot{
+  width:var(--cw); height:calc(var(--cw)*1.42); border:1px dashed var(--edge);
+  border-radius:4px; background:var(--slot);
+}
+.pilewrap{position:relative}
+.pilewrap .count{
+  position:absolute; right:-7px; bottom:-7px; background:var(--panel); border:1px solid var(--edge);
+  border-radius:999px; min-width:22px; text-align:center; font-size:11px; font-weight:600;
+  padding:1px 5px; font-variant-numeric:tabular-nums;
+}
+
+/* ── Barra azioni ──────────────────────────────────────────── */
+.actions{display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding-top:12px; border-top:1px solid var(--edge)}
+.hint{font-size:13px; color:var(--ink-soft); flex:1 1 200px; min-width:0}
+.hint.err{color:var(--red)}
+
+/* ── Colonna laterale ──────────────────────────────────────── */
+aside{display:flex; flex-direction:column; gap:14px}
+.side-h{
+  font-family:"Bodoni Moda",Didot,Georgia,serif; font-size:15px; font-weight:600;
+  padding:10px 12px; border-bottom:1px solid var(--edge); display:flex; justify-content:space-between; align-items:baseline;
+}
+.side-h span{font-family:Archivo,sans-serif; font-size:10.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--ink-faint)}
+.score{padding:12px}
+.score table{width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums}
+.score th{text-align:left; font-size:10.5px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-faint); font-weight:500; padding-bottom:6px}
+.score td{padding:3px 0; font-size:14px}
+.score td.n{text-align:right; font-weight:600; font-size:20px; font-family:"Bodoni Moda",Georgia,serif}
+.score .bar{height:4px; background:var(--slot); border-radius:99px; overflow:hidden; margin-top:3px}
+.score .bar i{display:block; height:100%; background:var(--accent)}
+.score .goal{margin-top:10px; font-size:11.5px; color:var(--ink-faint); letter-spacing:.04em}
+
+.log{padding:8px 12px 12px; max-height:246px; overflow-y:auto; font-size:12.5px; display:flex; flex-direction:column; gap:3px}
+.log div{color:var(--ink-soft)}
+.log div b{color:var(--ink); font-weight:600}
+.log div.hi{color:var(--accent)}
+
+details.rules{padding:0 12px 12px}
+details.rules summary{cursor:pointer; padding:10px 0; font-size:13px; font-weight:600}
+details.rules p, details.rules li{font-size:12.5px; color:var(--ink-soft); margin:5px 0}
+details.rules ul{padding-left:16px; margin:6px 0}
+details.rules b{color:var(--ink)}
+
+/* ── Finestre modali ───────────────────────────────────────── */
+.veil{
+  position:fixed; inset:0; background:rgba(10,16,12,.62); backdrop-filter:blur(2px);
+  display:flex; align-items:center; justify-content:center; padding:18px; z-index:40;
+}
+.modal{background:var(--panel); border:1px solid var(--edge); border-radius:3px; max-width:520px; width:100%; box-shadow:0 18px 44px var(--shadow); max-height:88vh; overflow:auto}
+.modal .mh{padding:16px 18px; border-bottom:1px solid var(--edge)}
+.modal .mh h2{font-family:"Bodoni Moda",Georgia,serif; font-size:22px}
+.modal .mh p{margin:4px 0 0; font-size:13px; color:var(--ink-soft)}
+.modal .mb{padding:16px 18px}
+.modal .mf{padding:14px 18px; border-top:1px solid var(--edge); display:flex; gap:8px; justify-content:flex-end}
+.sheet{width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; font-size:13.5px}
+.sheet th{font-size:10.5px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-faint); font-weight:500; text-align:right; padding:0 0 8px}
+.sheet th:first-child{text-align:left}
+.sheet td{padding:5px 0; text-align:right; border-top:1px solid var(--edge)}
+.sheet td:first-child{text-align:left; color:var(--ink-soft)}
+.sheet tr.tot td{font-weight:700; font-size:16px; border-top:2px solid var(--ink-faint)}
+.opts{display:flex; flex-direction:column; gap:10px}
+.opt{display:flex; gap:12px; align-items:flex-start; padding:12px; border:1px solid var(--edge); border-radius:3px; cursor:pointer; background:var(--panel-2)}
+.opt:hover{border-color:var(--accent)}
+.opt input{margin-top:3px; accent-color:var(--accent)}
+.opt b{display:block; font-size:14px}
+.opt small{color:var(--ink-soft); font-size:12.5px}
