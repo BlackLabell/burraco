@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tavolo da Burraco</title>
+<meta name="description" content="Burraco italiano gratuito contro il computer, uno contro uno o a coppie, con le regole ufficiali. Funziona anche senza connessione.">
+<meta name="theme-color" content="#14241D">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,600;6..96,700&family=Archivo:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Tavolo da Burraco</h1>
+      <p id="subtitle">Regole ufficiali italiane</p>
+    </div>
+    <div class="top-actions">
+      <button class="btn ghost" id="btn-theme" title="Cambia tema">Tema</button>
+      <button class="btn ghost" id="btn-rules">Regolamento</button>
+      <button class="btn" id="btn-new">Nuova partita</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <main class="panel board" id="board"></main>
+    <aside>
+      <section class="panel">
+        <div class="side-h">Punteggio <span id="hand-no"></span></div>
+        <div class="score" id="score"></div>
+      </section>
+      <section class="panel">
+        <div class="side-h">Cronaca <span>ultime mosse</span></div>
+        <div class="log" id="log"></div>
+      </section>
+      <section class="panel">
+        <details class="rules">
+          <summary>Promemoria rapido</summary>
+          <ul>
+            <li><b>Al tavolo:</b> clicca una carta per sceglierla, <i>trascinala</i> per spostarla nella mano. Una carta sola più un clic sul monte scarti la scarta. Con 3 o più carte che formano un gioco, la zona dei vostri giochi si accende: cliccala per calare. Si evidenziano solo i giochi che accettano davvero le carte scelte.</li>
+            <li><b>Turno:</b> pesca una carta dal tallone <i>oppure</i> prendi tutto il monte scarti, cala o attacca, poi scarta.</li>
+            <li><b>Giochi:</b> scale di 3+ carte dello stesso seme (max 13) o tris di 3+ carte uguali (max 8). Una sola matta per gioco.</li>
+            <li><b>Pinella:</b> il 2 del seme in posizione naturale non conta come matta.</li>
+            <li><b>Pozzetto:</b> quando finisci le carte prendi gli 11 del pozzetto e continui.</li>
+            <li><b>Chiusura:</b> serve il pozzetto preso e almeno un burraco. Non si chiude scartando una matta.</li>
+          </ul>
+        </details>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<div id="overlay"></div>
+
+<script type="module" src="./src/ui.js"></script>
+<script>
+// Registrazione del service worker: l'app resta giocabile anche offline.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => { /* niente offline, pazienza */ });
+  });
+}
+</script>
+</body>
+</html>
