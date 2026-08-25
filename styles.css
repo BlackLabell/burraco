@@ -368,6 +368,19 @@ details.rules b{color:var(--ink)}
 .modal .mh h2{font-family:"Bodoni Moda",Georgia,serif; font-size:22px}
 .modal .mh p{margin:4px 0 0; font-size:13px; color:var(--ink-soft)}
 .modal .mb{padding:16px 18px}
+/* regolamento per articoli */
+.modal .mb h3{
+  font-family:"Bodoni Moda",Georgia,serif; font-size:15px; font-weight:600;
+  margin:18px 0 5px; padding-top:12px; border-top:1px solid var(--edge); color:var(--ink);
+}
+.modal .mb h3:first-of-type{border-top:none; padding-top:0; margin-top:10px}
+.modal .mb ul{margin:6px 0; padding-left:18px}
+.modal .mb li{font-size:13px; color:var(--ink-soft); margin:5px 0; line-height:1.5}
+.modal .mb li b{color:var(--ink)}
+.modal .mb p.fonte{font-size:12.5px; color:var(--ink-faint); font-style:italic; margin:0 0 6px}
+.modal .mb ul.fonti li{font-style:normal}
+.modal .mb a{color:var(--accent); text-decoration:underline; text-underline-offset:2px}
+.modal .mb a:hover{color:var(--accent-2)}
 .modal .mf{padding:14px 18px; border-top:1px solid var(--edge); display:flex; gap:8px; justify-content:flex-end}
 .sheet{width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; font-size:13.5px}
 .sheet th{font-size:10.5px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-faint); font-weight:500; text-align:right; padding:0 0 8px}
@@ -381,3 +394,95 @@ details.rules b{color:var(--ink)}
 .opt input{margin-top:3px; accent-color:var(--accent)}
 .opt b{display:block; font-size:14px}
 .opt small{color:var(--ink-soft); font-size:12.5px}
+
+
+/* ══════════════════════════════════════════════════════════════
+   TELEFONO — una schermata sola, niente scorrimento della pagina.
+   Il tavolo occupa tutta l'altezza; scorrono solo, se serve, le
+   fasce dei giochi calati. Punteggio e cronaca dietro un pulsante.
+   ══════════════════════════════════════════════════════════════ */
+.solo-telefono{display:none}
+
+@media (max-width:760px){
+  html, body{height:100%; overflow:hidden}
+  body{background-attachment:scroll}
+
+  .wrap{
+    height:100dvh; max-width:none; margin:0;
+    padding:calc(6px + env(safe-area-inset-top)) 7px calc(6px + env(safe-area-inset-bottom));
+    gap:6px;
+  }
+
+  /* testata sottile: titolo piccolo, pulsanti compatti */
+  header.top{flex:0 0 auto; align-items:center; gap:8px; flex-wrap:nowrap}
+  .brand h1{font-size:19px; white-space:nowrap}
+  .brand p{display:none}
+  .top-actions{gap:6px; flex-wrap:nowrap; flex:0 0 auto}
+  .btn{padding:6px 10px; font-size:12px}
+  .solo-telefono{display:inline-block}
+  .no-telefono{display:none}
+  #btn-menu{font-size:16px; line-height:1; padding:5px 10px}
+  .brand{min-width:0; overflow:hidden}
+
+  /* il tavolo prende tutto lo spazio che resta */
+  .layout{flex:1 1 auto; min-height:0; display:block}
+  aside{display:none}
+  .board{height:100%; border-width:3px; border-radius:8px}
+
+  .zone{padding:7px 9px}
+  .seat-label{margin-bottom:5px; font-size:9.5px; letter-spacing:.12em}
+  .seat-label b{font-size:12px}
+  .chip{font-size:9px; padding:1px 6px}
+
+  /* fasce a misura: quelle dei giochi si prendono il resto e scorrono */
+  .zone.posti{flex:0 0 auto}
+  .zone.mid{flex:0 0 auto; padding:8px 9px}
+  .zone.mano{flex:0 0 auto}
+  /* le fasce dei giochi crescono col contenuto e scorrono di lato,
+     così ogni gioco resta intero invece di essere tagliato a metà */
+  .zone.giochi{flex:1 1 auto; min-height:62px; overflow:hidden; display:flex; flex-direction:column}
+  .zone.giochi .melds{
+    min-height:0; flex:1 1 auto; flex-wrap:nowrap; justify-content:flex-start;
+    overflow-x:auto; overflow-y:auto; gap:7px; padding-bottom:2px;
+    scrollbar-width:none;
+  }
+  .zone.giochi .melds::-webkit-scrollbar{display:none}
+  .meld{padding:4px 6px 3px}
+
+  .seat .fan{--cw:26px}
+  .seat .fan .card + .card{margin-left:-16px}
+  .seat .who{font-size:10px}
+
+  /* i quattro mazzi in una riga sola: si recupera un'intera fila */
+  .center{display:grid; grid-template-columns:repeat(4,auto); justify-content:center; gap:4px 10px}
+  .center .state{grid-column:1 / -1; justify-content:center}
+  .center .piles, .center .pozzetti{display:contents}
+  .pile{--cw:42px; gap:2px}
+  .pile .cap{font-size:9px; letter-spacing:.08em}
+  .pile .cap b{font-size:13px}
+  .state .now{font-size:16px}
+  .scarti .card + .card{margin-left:calc(var(--cw) * -0.80)}
+  .pile .cap{white-space:nowrap}
+  .pilewrap .count{right:-5px; bottom:-5px; min-width:19px; font-size:10px}
+
+  /* la mano: una riga sola, carte sovrapposte come in mano */
+  .hand{flex-wrap:nowrap; gap:0; justify-content:center; padding:2px 0 0}
+  .hand.ventaglio .card + .card{margin-left:calc(var(--passo) - var(--cw))}
+  .hand .card{transition:transform .12s, box-shadow .12s}
+  .hand .card.sel{z-index:5; transform:translateY(-14px)}
+  .hand .card.gap-before{margin-left:calc(var(--passo) - var(--cw) + 20px)}
+  .board.turno .hand{--cw:58px}
+
+  .actions{padding-top:7px; margin-top:7px; gap:6px}
+  .hint{flex:1 1 100%; font-size:11.5px; order:9; line-height:1.35}
+
+  .modal{max-height:90vh}
+}
+
+/* schermi molto stretti */
+@media (max-width:400px){
+  .brand h1{font-size:17px}
+  .btn{padding:5px 7px; font-size:11px}
+  .pile{--cw:40px}
+  .seat .fan{--cw:23px}
+}

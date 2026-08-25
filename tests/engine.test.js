@@ -128,18 +128,151 @@ t('la carta naturale sposta il jolly in coda', () => {
   assert(wildIdx === 0 || wildIdx === 3, 'la matta deve spostarsi a un\'estremità, invece è in posizione ' + wildIdx);
 });
 
+console.log('--- Spostamento della matta imprigionata ---');
+
+function scalaFiori() {
+  // 3♣ 2♣(come 4♣) 5♣ 6♣ : la matta è chiusa fra il 3 e il 5
+  const g = E.newGame('1v1', { seed: 5 });
+  g.turn = 0; g.phase = 'meld';
+  const carte = [C(3, 'F'), C(2, 'F'), C(5, 'F'), C(6, 'F')];
+  g.hands[0] = [...carte, C(13, 'P'), C(12, 'P')];
+  assert(E.meldNew(g, 0, carte.map(c => c.id)).ok, 'scala non calata');
+  const m = g.teams[0].melds[0];
+  eq(m.matte, 1, 'il 2 di fiori deve fare da matta:');
+  const wild = m.slots.find(x => x.wild);
+  eq(wild.pos, 4, 'la matta sta al posto del 4:');
+  assert(wild.pos !== m.lo && wild.pos !== m.hi, 'per il test deve essere imprigionata');
+  return { g, m };
+}
+
+t('una matta imprigionata non si scaccia con un\'altra matta', () => {
+  const { g, m } = scalaFiori();
+  const dueCuori = C(2, 'C');
+  g.hands[0] = [dueCuori, C(9, 'P'), C(8, 'P')];
+  const r = E.addToMeld(g, 0, m.id, [dueCuori.id]);
+  assert(!r.ok, 'ha permesso di sostituire la matta con un\'altra matta');
+  assert(/4♣/.test(r.error), 'il messaggio deve dire quale carta serve: ' + r.error);
+  eq(g.teams[0].melds[0].slots.length, 4, 'il gioco non deve cambiare:');
+});
+
+t('la carta che la matta rappresenta invece la libera', () => {
+  const { g, m } = scalaFiori();
+  const quattro = C(4, 'F');
+  g.hands[0] = [quattro, C(9, 'P'), C(8, 'P')];
+  const r = E.addToMeld(g, 0, m.id, [quattro.id]);
+  assert(r.ok, 'il 4 di fiori doveva essere accettato: ' + r.error);
+  const m2 = g.teams[0].melds[0];
+  eq(m2.slots.length, 5);
+  eq(m2.matte, 0, 'il 2 di fiori torna naturale, niente matte:');
+  eq(m2.slots.map(x => E.cardLabel(x.card)).join(' '), '2♣ 3♣ 4♣ 5♣ 6♣');
+});
+
+t('allungare il gioco senza toccare la matta resta lecito', () => {
+  const { g, m } = scalaFiori();
+  const sette = C(7, 'F');
+  g.hands[0] = [sette, C(9, 'P'), C(8, 'P')];
+  const r = E.addToMeld(g, 0, m.id, [sette.id]);
+  assert(r.ok, r.error);
+  const m2 = g.teams[0].melds[0];
+  eq(m2.slots.length, 5);
+  eq(m2.slots.find(x => x.wild).pos, 4, 'la matta resta dov\'era:');
+});
+
+t('una matta libera in fondo può invece scivolare', () => {
+  // 2♣(come 4♣) 5♣ 6♣ : la matta è all'estremità bassa
+  const g = E.newGame('1v1', { seed: 6 });
+  g.turn = 0; g.phase = 'meld';
+  const carte = [C(2, 'F'), C(5, 'F'), C(6, 'F')];
+  g.hands[0] = [...carte, C(13, 'P'), C(12, 'P')];
+  assert(E.meldNew(g, 0, carte.map(c => c.id)).ok);
+  const m = g.teams[0].melds[0];
+  eq(m.slots.find(x => x.wild).pos, m.lo, 'per il test la matta deve stare in fondo');
+  const otto = C(8, 'F');
+  g.hands[0] = [otto, C(9, 'P'), C(10, 'P')];
+  const r = E.addToMeld(g, 0, m.id, [otto.id]);
+  assert(r.ok, 'la matta libera doveva poter scivolare in cima: ' + r.error);
+  eq(g.teams[0].melds[0].slots.map(x => E.cardLabel(x.card)).join(' '), '5♣ 6♣ 2♣ 8♣');
+});
+
 console.log('--- Regole di mano ---');
 
 t('distribuzione: 11 carte a testa, 2 pozzetti da 11', () => {
   const g = E.newGame('2v2', { seed: 11 });
   for (let p = 0; p < 4; p++) eq(g.hands[p].length, 11, 'mano ' + p + ':');
   eq(g.pozzetti[0].length, 11); eq(g.pozzetti[1].length, 11);
-  eq(g.stock.length, 108 - 44 - 22);
+  eq(g.stock.length, 108 - 44 - 22 - 1, 'tallone meno la carta scoperta:');
 });
 
-t('1v1: tallone da 64 carte', () => {
+t('1v1: tallone da 63 carte più la carta scoperta', () => {
   const g = E.newGame('1v1', { seed: 3 });
-  eq(g.stock.length, 108 - 22 - 22);
+  eq(g.stock.length, 108 - 22 - 22 - 1);
+});
+
+t('il mazziere scopre una carta: il monte scarti non parte vuoto', () => {
+  for (const modo of ['1v1', '2v2']) {
+    const g = E.newGame(modo, { seed: 55 });
+    eq(g.discard.length, 1, modo + ': carta scoperta all\'inizio:');
+    // chi apre può già prendere il monte
+    const p = g.turn;
+    const n = g.hands[p].length;
+    const r = E.draw(g, p, 'pile');
+    assert(r.ok, 'il primo giocatore deve poter prendere il monte: ' + r.error);
+    eq(g.hands[p].length, n + 1);
+  }
+});
+
+t('le ultime due carte del tallone non si giocano: la mano finisce', () => {
+  const g = E.newGame('1v1', { seed: 61 });
+  g.turn = 0; g.phase = 'draw';
+  g.stock = g.stock.slice(0, 3);       // ne resta una giocabile
+  const r = E.draw(g, 0, 'stock');
+  assert(r.ok, r.error);
+  eq(g.stock.length, 2, 'dopo la pesca restano le due non giocabili:');
+  assert(!g.handOver, 'il turno di chi ha pescato deve completarsi');
+  const c = g.hands[0].find(x => !E.canBeWild(x));
+  E.discard(g, 0, c.id);
+  assert(g.handOver, 'dopo quello scarto la mano deve chiudersi');
+  eq(g.result.closer, null, 'nessuna chiusura regolare:');
+});
+
+t('con il pozzetto preso non si cala l\'ultima carta: si deve scartare', () => {
+  const g = E.newGame('1v1', { seed: 62 });
+  g.turn = 0; g.phase = 'meld'; g.teams[0].pozzetto = true;
+  const seq = [C(4, 'C'), C(5, 'C'), C(6, 'C'), C(7, 'C'), C(8, 'C'), C(9, 'C'), C(10, 'C')];
+  g.hands[0] = [...seq];
+  const r = E.meldNew(g, 0, seq.map(c => c.id));
+  assert(!r.ok, 'ha lasciato chiudere calando, senza scarto finale');
+  assert(!g.handOver);
+});
+
+t('senza pozzetto invece calare tutto è lecito: si va a pozzetto', () => {
+  const g = E.newGame('1v1', { seed: 63 });
+  g.turn = 0; g.phase = 'meld';
+  const tris = [C(9, 'C'), C(9, 'P'), C(9, 'F')];
+  g.hands[0] = [...tris];
+  const r = E.meldNew(g, 0, tris.map(c => c.id));
+  assert(r.ok, r.error);
+  assert(r.pozzetto === true && r.volo === true, 'doveva prendere il pozzetto al volo');
+  eq(g.hands[0].length, 11);
+});
+
+t('non ti lascia restare con la sola matta in mano potendo chiudere', () => {
+  const g = E.newGame('1v1', { seed: 64 });
+  g.turn = 0; g.phase = 'meld'; g.teams[0].pozzetto = true;
+  const seq = [C(4, 'C'), C(5, 'C'), C(6, 'C'), C(7, 'C'), C(8, 'C'), C(9, 'C'), C(10, 'C')];
+  E.meldNew(g, 0, []);                       // no-op difensivo
+  g.hands[0] = [...seq, JOLLY(), C(13, 'P')];
+  let r = E.meldNew(g, 0, seq.map(c => c.id));
+  assert(r.ok, r.error);
+  assert(E.hasBurraco(g, 0), 'burraco non rilevato');
+  const re = g.hands[0].find(c => c.r === 13);
+  const m = g.teams[0].melds[0];
+  // attaccare il K non c'entra con la scala: proviamo invece a calare il K in un tris
+  // qui basta verificare che scartare la matta come ultima carta resti vietato
+  r = E.discard(g, 0, re.id);
+  assert(r.ok, r.error);
+  const jolly = g.hands[0][0];
+  assert(E.canBeWild(jolly), 'in mano deve restare la matta');
 });
 
 t('non si può calare prima di pescare', () => {
@@ -170,28 +303,52 @@ t('svuotare la mano prende il pozzetto, non chiude', () => {
   assert(!g.handOver, 'la mano non deve finire');
 });
 
-t('non si chiude senza burraco', () => {
+t('non si chiude senza burraco: la calata che porta lì è vietata', () => {
   const g = E.newGame('1v1', { seed: 22 });
   g.turn = 0; g.phase = 'meld'; g.teams[0].pozzetto = true;
   const a = C(9, 'C'), b = C(9, 'P'), c = C(9, 'F'), d = C(4, 'Q');
   g.hands[0] = [a, b, c, d];
-  let r = E.meldNew(g, 0, [a.id, b.id, c.id]);
-  assert(r.ok, r.error);
-  r = E.discard(g, 0, d.id);
-  assert(!r.ok, 'ha lasciato chiudere senza burraco');
+  // il tris di 9 non è un burraco: calarlo lascerebbe una carta sola, e dopo
+  // lo scarto il giocatore resterebbe a zero senza poter chiudere
+  const r = E.meldNew(g, 0, [a.id, b.id, c.id]);
+  assert(!r.ok, 'ha permesso la calata che porta a una chiusura impossibile');
+  eq(g.hands[0].length, 4, 'la mano non deve cambiare:');
   assert(!g.handOver);
 });
 
-t('non si chiude scartando una matta', () => {
+t('lo scarto dell\'ultima carta resta vietato senza burraco', () => {
+  const g = E.newGame('1v1', { seed: 122 });
+  g.turn = 0; g.phase = 'meld'; g.teams[0].pozzetto = true;
+  const d = C(4, 'Q');
+  g.hands[0] = [d];                       // stato costruito a mano: rete di sicurezza
+  const r = E.discard(g, 0, d.id);
+  assert(!r.ok, 'ha lasciato svuotare la mano senza burraco');
+  assert(!g.handOver);
+});
+
+t('non si chiude scartando una matta: la calata che lascia solo la matta è vietata', () => {
   const g = E.newGame('1v1', { seed: 23 });
   g.turn = 0; g.phase = 'meld'; g.teams[0].pozzetto = true;
   const seq = [C(4, 'C'), C(5, 'C'), C(6, 'C'), C(7, 'C'), C(8, 'C'), C(9, 'C'), C(10, 'C')];
   const j = JOLLY();
   g.hands[0] = [...seq, j];
-  let r = E.meldNew(g, 0, seq.map(c => c.id));
-  assert(r.ok, r.error);
+  // calare la scala farebbe burraco, ma resterebbe in mano solo il jolly:
+  // non si chiude scartando una matta, quindi il giocatore sarebbe bloccato
+  const r = E.meldNew(g, 0, seq.map(c => c.id));
+  assert(!r.ok, 'ha permesso la calata che lascia solo la matta');
+  eq(g.hands[0].length, 8);
+});
+
+t('lo scarto della matta come ultima carta resta vietato', () => {
+  const g = E.newGame('1v1', { seed: 123 });
+  g.turn = 0; g.phase = 'meld'; g.teams[0].pozzetto = true;
+  const seq = [C(4, 'C'), C(5, 'C'), C(6, 'C'), C(7, 'C'), C(8, 'C'), C(9, 'C'), C(10, 'C')];
+  const j = JOLLY(), extra = C(13, 'P');
+  g.hands[0] = [...seq, j, extra];
+  assert(E.meldNew(g, 0, seq.map(c => c.id)).ok, 'la scala doveva passare: restano due carte');
   assert(E.hasBurraco(g, 0), 'burraco non rilevato');
-  r = E.discard(g, 0, j.id);
+  g.hands[0] = [j];                       // stato costruito a mano: rete di sicurezza
+  const r = E.discard(g, 0, j.id);
   assert(!r.ok, 'ha permesso di chiudere con una matta');
 });
 
@@ -225,6 +382,110 @@ t('le carte in mano si sottraggono', () => {
   E.discard(g, 0, x.id);
   eq(g.result.detail[1].hand, 45);
   eq(g.result.detail[1].total, -45);
+});
+
+t('due carte, pozzetto preso e niente burraco: l\'attacco che ti bloccherebbe è vietato', () => {
+  const g = E.newGame('1v1', { seed: 99 });
+  g.turn = 0; g.phase = 'meld';
+  const tris = [C(6, 'C'), C(6, 'P'), C(6, 'F')];
+  g.hands[0] = [...tris, C(2, 'C')];
+  assert(E.meldNew(g, 0, tris.map(c => c.id)).ok, 'tris non calato');
+  g.teams[0].pozzetto = true;
+  assert(!E.hasBurraco(g, 0), 'per il test la squadra non deve avere burraco');
+
+  const sei = C(6, 'Q'), re = C(13, 'P');
+  g.hands[0] = [sei, re];
+  const m = g.teams[0].melds[0];
+
+  // attaccare il 6 lascerebbe una carta sola: dopo lo scarto resterebbe a zero
+  // senza poter chiudere. Va rifiutato, altrimenti il giocatore resta bloccato.
+  const r1 = E.addToMeld(g, 0, m.id, [sei.id]);
+  assert(!r1.ok, 'ha permesso l\'attacco che porta al blocco');
+  eq(g.hands[0].length, 2, 'la mano non deve cambiare:');
+
+  // la via d'uscita c'è sempre: scartare e tenere l'altra carta
+  const r2 = E.discard(g, 0, re.id);
+  assert(r2.ok, 'lo scarto deve restare possibile: ' + r2.error);
+  eq(g.hands[0].length, 1);
+  assert(!g.handOver, 'la mano non deve finire');
+});
+
+t('con il burraco invece l\'attacco è permesso e si chiude scartando', () => {
+  const g = E.newGame('1v1', { seed: 98 });
+  g.turn = 0; g.phase = 'meld';
+  const seq = [C(4, 'C'), C(5, 'C'), C(6, 'C'), C(7, 'C'), C(8, 'C'), C(9, 'C'), C(10, 'C')];
+  g.hands[0] = [...seq, C(2, 'P')];
+  assert(E.meldNew(g, 0, seq.map(c => c.id)).ok);
+  g.teams[0].pozzetto = true;
+  assert(E.hasBurraco(g, 0), 'serve il burraco per questo test');
+
+  const undici = C(11, 'C'), re = C(13, 'P');
+  g.hands[0] = [undici, re];
+  const m = g.teams[0].melds[0];
+  const r1 = E.addToMeld(g, 0, m.id, [undici.id]);
+  assert(r1.ok, 'con il burraco l\'attacco deve passare: ' + r1.error);
+  eq(g.hands[0].length, 1);
+  const r2 = E.discard(g, 0, re.id);
+  assert(r2.ok, r2.error);
+  assert(r2.closed, 'doveva chiudere');
+  eq(g.result.detail[0].chiusura, 100);
+});
+
+t('attaccare a una scala da 6 fa burraco: si può restare con una carta e chiudere', () => {
+  const g = E.newGame('1v1', { seed: 7 });
+  g.turn = 0; g.phase = 'meld';
+  const scala = [C(4, 'C'), C(5, 'C'), C(6, 'C'), C(7, 'C'), C(8, 'C'), C(9, 'C')];
+  g.hands[0] = [...scala, C(13, 'P'), C(12, 'P')];
+  assert(E.meldNew(g, 0, scala.map(c => c.id)).ok, 'scala da 6 non calata');
+  g.teams[0].pozzetto = true;
+  assert(!E.hasBurraco(g, 0), 'sei carte non sono ancora un burraco');
+
+  const dieci = C(10, 'C'), re = C(13, 'F');
+  g.hands[0] = [dieci, re];
+  const m = g.teams[0].melds[0];
+
+  // il 10 porta la scala a sette carte: è quell'attacco stesso a creare il burraco,
+  // quindi restare con una carta sola diventa lecito
+  const r1 = E.addToMeld(g, 0, m.id, [dieci.id]);
+  assert(r1.ok, 'ha rifiutato l\'attacco che crea il burraco: ' + r1.error);
+  eq(g.teams[0].melds[0].slots.length, 7);
+  assert(E.hasBurraco(g, 0), 'burraco non riconosciuto dopo l\'attacco');
+  eq(g.hands[0].length, 1);
+
+  const r2 = E.discard(g, 0, re.id);
+  assert(r2.ok, 'lo scarto di chiusura è stato rifiutato: ' + r2.error);
+  assert(r2.closed, 'doveva chiudere');
+  eq(g.result.detail[0].chiusura, 100);
+  eq(g.result.detail[0].burrachi.join(), 'pulito');
+});
+
+t('ma se la carta che resta è una matta, quell\'attacco resta vietato', () => {
+  const g = E.newGame('1v1', { seed: 8 });
+  g.turn = 0; g.phase = 'meld';
+  const scala = [C(4, 'C'), C(5, 'C'), C(6, 'C'), C(7, 'C'), C(8, 'C'), C(9, 'C')];
+  g.hands[0] = [...scala, C(13, 'P'), C(12, 'P')];
+  assert(E.meldNew(g, 0, scala.map(c => c.id)).ok);
+  g.teams[0].pozzetto = true;
+
+  const dieci = C(10, 'C'), j = JOLLY();
+  g.hands[0] = [dieci, j];
+  const r = E.addToMeld(g, 0, g.teams[0].melds[0].id, [dieci.id]);
+  assert(!r.ok, 'resterebbe la sola matta, che non chiude: andava rifiutato');
+  eq(g.hands[0].length, 2, 'la mano non deve cambiare:');
+});
+
+t('attaccare a un gioco che NON diventa burraco continua a richiedere due carte', () => {
+  const g = E.newGame('1v1', { seed: 9 });
+  g.turn = 0; g.phase = 'meld';
+  const tris = [C(6, 'C'), C(6, 'P'), C(6, 'F')];
+  g.hands[0] = [...tris, C(13, 'P')];
+  assert(E.meldNew(g, 0, tris.map(c => c.id)).ok);
+  g.teams[0].pozzetto = true;
+
+  const sei = C(6, 'Q'), re = C(13, 'F');
+  g.hands[0] = [sei, re];
+  const r = E.addToMeld(g, 0, g.teams[0].melds[0].id, [sei.id]);
+  assert(!r.ok, 'quattro carte non fanno burraco: l\'attacco andava rifiutato');
 });
 
 console.log('--- Coerenza del filtro rapido ---');

@@ -212,6 +212,33 @@ function canAttach(m, c) {
   return c.r === m.lo - 1 || c.r === m.hi + 1;
 }
 
+/**
+ * Una matta già sul tavolo si sposta solo a certe condizioni.
+ *  - se sta a un'estremità del gioco è "libera": può scivolare per far posto
+ *    a una carta più alta o più bassa;
+ *  - se è chiusa fra due carte è "imprigionata": si sposta soltanto se cali
+ *    proprio la carta che rappresenta, che va a prendere il suo posto.
+ * Nei tris la posizione non conta, quindi non c'è niente da proteggere.
+ */
+function spostamentoLecito(vecchio, nuovo, aggiunte) {
+  if (vecchio.type !== 'seq' || nuovo.type !== 'seq') return true;
+  const prima = vecchio.slots.find(s => s.wild);
+  if (!prima) return true;
+  const dopo = nuovo.slots.find(s => s.card.id === prima.card.id);
+  if (!dopo) return true;
+  if (dopo.wild && dopo.pos === prima.pos) return true;                  // non si è mossa
+  if (prima.pos === vecchio.lo || prima.pos === vecchio.hi) return true; // era libera
+  const serve = naturalRankAt(prima.pos);
+  return aggiunte.some(c => c.r === serve && c.s === vecchio.suit);
+}
+
+/** La carta che una matta imprigionata pretende per lasciare il posto. */
+function cartaCheServe(vecchio) {
+  const prima = vecchio.slots.find(s => s.wild);
+  if (!prima) return null;
+  return RANK_LABEL[naturalRankAt(prima.pos)] + SUIT_SYM[vecchio.suit];
+}
+
 /** Carte di un gioco, memorizzate alla prima richiesta (utile dopo un ricaricamento). */
 function meldCards(m) {
   if (!m.cards) m.cards = m.slots.map(s => s.card);
@@ -290,11 +317,14 @@ function startHand(g) {
   for (let p = 0; p < g.nPlayers; p++) g.hands.push(deck.splice(0, 11).sort(sortCards));
   g.pozzetti = [deck.splice(0, 11), deck.splice(0, 11)];
   g.stock = deck;
-  g.discard = [];
+  // Art. 4 del codice di gara: "il mazziere scoprirà la prima carta dal tallone".
+  // Il monte scarti non parte mai vuoto: chi apre può già prenderlo.
+  g.discard = [g.stock.shift()];
   g.teams = [0, 1].map(() => ({ melds: [], pozzetto: false }));
   g.meldSeq = 0;
   g.turn = (g.dealer + 1) % g.nPlayers;
   g.phase = 'draw';
+  g.turni = 0;
   g.handOver = false;
   g.result = null;
   g.tookPileThisTurn = false;
@@ -360,9 +390,64 @@ function afterHandEmpty(g, p, viaDiscard) {
   return { closed: false, illegal: true };
 }
 
+/** Restare senza carte SCARTANDO: o si va a pozzetto, o si chiude. */
 function canEmptyHand(g, p) {
   const team = g.teamOf[p];
   return !g.teams[team].pozzetto || hasBurraco(g, team);
+}
+
+/**
+ * Restare senza carte CALANDO: lecito solo per andare a pozzetto.
+ * La chiusura passa sempre dallo scarto — Art. 17: "ha ultimato tutte le carte
+ * scartandone una". Quindi con il pozzetto già preso una carta va tenuta.
+ */
+function canMeldToZero(g, p) {
+  return !g.teams[g.teamOf[p]].pozzetto;
+}
+
+/**
+ * Quante carte devono restare in mano dopo aver calato, perché il turno si
+ * possa chiudere con uno scarto lecito.
+ *   0 → pozzetto non ancora preso: si può finire tutto e andare a pozzetto
+ *   1 → pozzetto preso e burraco fatto: quella carta è lo scarto di chiusura
+ *   2 → pozzetto preso ma niente burraco: non si può chiudere, quindi dopo lo
+ *       scarto una carta deve restare in mano
+ *
+ * Il conto va fatto sulla situazione DOPO la calata: spesso è proprio quella
+ * calata a creare il burraco. `nuovo` è il gioco che sta per finire sul tavolo,
+ * `sostituisce` l'id del gioco che rimpiazza (per gli attacchi).
+ */
+function minimoDaTenere(g, p, nuovo, sostituisce) {
+  const team = g.teamOf[p];
+  if (!g.teams[team].pozzetto) return 0;
+  return burracoDopo(g, team, nuovo, sostituisce) ? 1 : 2;
+}
+
+function burracoDopo(g, team, nuovo, sostituisce) {
+  if (nuovo && burracoType(nuovo)) return true;
+  for (const m of g.teams[team].melds) {
+    if (sostituisce != null && m.id === sostituisce) continue;
+    if (burracoType(m)) return true;
+  }
+  return false;
+}
+
+/** Messaggio adatto al motivo per cui la calata lascerebbe il giocatore senza mosse. */
+function erroreTroppePocheCarte(min) {
+  return min === 1
+    ? 'Devi tenere una carta da scartare: la chiusura si fa scartando l\'ultima carta.'
+    : 'Senza burraco non puoi chiudere, quindi dopo lo scarto una carta deve restarti in mano: tienine almeno due.';
+}
+
+/**
+ * Evita il vicolo cieco: restare con la sola matta in mano quando si potrebbe
+ * chiudere. Non si chiude scartando una matta, e non si può nemmeno calarla:
+ * il giocatore resterebbe senza mosse. Meglio impedire la calata che ci porta.
+ */
+function vicoloCieco(g, p, restanti, nuovo, sostituisce) {
+  if (restanti.length !== 1 || !canBeWild(restanti[0])) return false;
+  const team = g.teamOf[p];
+  return g.teams[team].pozzetto && burracoDopo(g, team, nuovo, sostituisce);
 }
 
 function meldNew(g, p, ids) {
@@ -372,8 +457,11 @@ function meldNew(g, p, ids) {
   if (!cards) return err('Carte non valide.');
   const sol = solveMeld(cards);
   if (!sol) return err('Combinazione non valida: serve una scala dello stesso seme o un tris, con al massimo una matta.');
-  if (cards.length === g.hands[p].length && !canEmptyHand(g, p)) {
-    return err('Non puoi calare tutte le carte: ti serve almeno un burraco per chiudere.');
+  const restanti = g.hands[p].filter(c => !cards.includes(c));
+  const min = minimoDaTenere(g, p, sol, null);
+  if (restanti.length < min) return err(erroreTroppePocheCarte(min));
+  if (vicoloCieco(g, p, restanti, sol, null)) {
+    return err('Ti resterebbe in mano solo una matta, che non si può scartare per chiudere. Tieni un\'altra carta.');
   }
   g.hands[p] = g.hands[p].filter(c => !cards.includes(c));
   sol.id = ++g.meldSeq;
@@ -394,8 +482,14 @@ function addToMeld(g, p, meldId, ids) {
   if (!cards) return err('Carte non valide.');
   const sol = solveWith(m, cards);
   if (!sol) return err('Attacco non valido su questo gioco.');
-  if (cards.length === g.hands[p].length && !canEmptyHand(g, p)) {
-    return err('Non puoi calare tutte le carte: ti serve almeno un burraco per chiudere.');
+  if (!spostamentoLecito(m, sol, cards)) {
+    return err(`La matta è chiusa fra due carte: per spostarla devi calare il ${cartaCheServe(m)}, che ne prende il posto.`);
+  }
+  const restanti = g.hands[p].filter(c => !cards.includes(c));
+  const min = minimoDaTenere(g, p, sol, m.id);
+  if (restanti.length < min) return err(erroreTroppePocheCarte(min));
+  if (vicoloCieco(g, p, restanti, sol, m.id)) {
+    return err('Ti resterebbe in mano solo una matta, che non si può scartare per chiudere. Tieni un\'altra carta.');
   }
   g.hands[p] = g.hands[p].filter(c => !cards.includes(c));
   sol.id = m.id; sol.team = m.team;
@@ -430,8 +524,13 @@ function nextTurn(g) {
   g.turn = (g.turn + 1) % g.nPlayers;
   g.phase = 'draw';
   g.tookPileThisTurn = false;
-  // tallone esaurito e monte scarti vuoto: mano bloccata
-  if (g.stock.length === 0 && g.discard.length === 0) endHand(g, null);
+  // Valvola di sicurezza, non una regola: se nessuno pesca mai dal tallone la mano
+  // potrebbe girare all'infinito. Una mano vera ne dura una quarantina di turni.
+  g.turni = (g.turni || 0) + 1;
+  if (g.turni > 400) { endHand(g, null); return; }
+  // Art. 17: le ultime due carte del tallone non sono giocabili. La mano finisce
+  // con lo scarto di chi ha pescato la terzultima, e non si prosegue col monte scarti.
+  if (g.stock.length <= 2) endHand(g, null);
 }
 
 /* ---------- Fine mano e punteggi ---------- */
@@ -554,7 +653,6 @@ function aiOneMeld(g, p) {
     for (const c of [...g.hands[p]]) {
       if (canBeWild(c) && m.matte > 0) continue;           // una sola matta per gioco
       if (canBeWild(c) && burracoType(m) === null && m.slots.length < 6) continue; // non sprecare matte
-      if (g.hands[p].length === 1 && !canEmptyHand(g, p)) continue;
       if (!canAttach(m, c)) continue;
       const test = solveWith(m, c);
       if (!test) continue;
@@ -569,7 +667,6 @@ function aiOneMeld(g, p) {
     return a.filter(canBeWild).length - b.filter(canBeWild).length;
   });
   for (const cand of cands) {
-    if (cand.length === g.hands[p].length && !canEmptyHand(g, p)) continue;
     if (meldNew(g, p, cand.map(c => c.id)).ok) return { t: 'meld', n: cand.length };
   }
   return null;
@@ -599,13 +696,18 @@ function aiDraw(g, p) {
   if (g.discard.length > 0) {
     const before = g.hands[p].length;
     const withPile = g.hands[p].concat(g.discard);
-    const gain = findNewMelds(withPile).length - findNewMelds(g.hands[p]).length;
+    const nuoviGiochi = findNewMelds(withPile);
+    const gain = nuoviGiochi.length - findNewMelds(g.hands[p]).length;
     const melds = teamMelds(g, p);
     let attachable = 0;
     for (const c of g.discard) if (melds.some(m => canAttach(m, c))) attachable++;
+    // con il pozzetto preso e senza burraco vanno tenute due carte: un gioco che
+    // svuoterebbe la mano non è calabile, e prendere il monte sarebbe inutile
+    const min = minimoDaTenere(g, p, null, null);
+    const giocabile = attachable > 0 || nuoviGiochi.some(c => withPile.length - c.length >= min);
     const value = g.discard.reduce((s, c) => s + cardValue(c), 0);
     // conviene se il monte è ricco o sblocca giochi, ma non se ingolfa la mano
-    if ((gain >= 1 && g.discard.length <= 12) || attachable >= 2 || (g.discard.length >= 4 && value >= 60 && g.discard.length <= 10)) takePile = true;
+    if ((gain >= 1 && giocabile && g.discard.length <= 12) || attachable >= 2 || (g.discard.length >= 4 && value >= 60 && g.discard.length <= 10)) takePile = true;
     if (g.stock.length === 0) takePile = true;
     if (before > 16) takePile = false;
   }
@@ -644,8 +746,9 @@ const ENGINE = {
   SUITS, SUIT_SYM, SUIT_RED, RANK_LABEL, BURRACO_POINTS, BONUS_CHIUSURA, MALUS_POZZETTO,
   cardValue, cardLabel, isJolly, isPinella, canBeWild, buildDeck, makeRng, shuffle,
   solveSeq, solveSet, solveMeld, solveWith, meldCards, canAttach, burracoType, meldPoints,
+  spostamentoLecito, cartaCheServe,
   newGame, startHand, nextHand, endHand, draw, meldNew, addToMeld, discard, nextTurn,
-  teamMelds, hasBurraco, canEmptyHand, findNewMelds, sortCards,
+  teamMelds, hasBurraco, canEmptyHand, canMeldToZero, minimoDaTenere, findNewMelds, sortCards,
   aiTurn, aiDraw, aiOneMeld, aiDiscard,
 };
 export default ENGINE;

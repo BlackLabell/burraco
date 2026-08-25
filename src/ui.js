@@ -151,11 +151,24 @@ function meldsHTML(team, clickable) {
   const carte = melds.reduce((s, m) => s + m.slots.length, 0);
   const stretto = window.innerWidth < 620;
   let cw = carte <= 14 ? 44 : carte <= 24 ? 39 : carte <= 34 ? 34 : carte <= 46 ? 30 : 27;
-  if (stretto) cw = Math.round(cw * 0.82);
+  if (stretto) cw = Math.round(cw * 0.62);
   return {
     cw,
     html: melds.map(m => meldHTML(m, clickable(m))).join(''),
   };
+}
+
+/**
+ * Mano a ventaglio: con lo schermo stretto le carte si sovrappongono quel tanto
+ * che basta a stare tutte in una riga, come le tieni davvero in mano.
+ */
+function ventaglio(n) {
+  const stretto = window.innerWidth < 760;
+  if (!stretto || n < 2) return { cls: '', css: '' };
+  const cw = window.innerWidth < 400 ? 52 : 58;
+  const spazio = window.innerWidth - 34;          // margini della fascia
+  const passo = Math.min(cw + 5, Math.max(cw * 0.34, (spazio - cw) / (n - 1)));
+  return { cls: 'ventaglio', css: `--cw:${cw}px; --passo:${passo.toFixed(1)}px` };
 }
 
 function render() {
@@ -177,7 +190,8 @@ function render() {
   const scartaQui = myTurn && G.phase === 'meld' && scelte.length === 1;
 
   // il monte scarti si vede tutto: le ultime carte a ventaglio, la più recente in cima
-  const MOSTRA = window.innerWidth < 620 ? 6 : 9;
+  const stretto = window.innerWidth < 760;
+  const MOSTRA = stretto ? 3 : 9;
   const visibili = G.discard.slice(0, MOSTRA).reverse();
   const nascoste = G.discard.length - visibili.length;
   const montaggio = visibili.length
@@ -195,17 +209,17 @@ function render() {
       </div>
       <div class="pile scartiera ${canDraw && G.discard.length ? 'click' : ''} ${scartaQui ? 'click bersaglio' : ''} ${G.discard.length ? '' : 'dim'}" data-act="pile">
         <div class="pilewrap">${montaggio}<span class="count">${G.discard.length}</span></div>
-        <div class="cap">${scartaQui ? 'Scarta qui' : 'Monte scarti'}</div>
+        <div class="cap">${scartaQui ? 'Scarta qui' : (stretto ? 'Scarti' : 'Monte scarti')}</div>
       </div>
     </div>
     <div class="pozzetti">
       <div class="pile ${G.teams[0].pozzetto ? 'dim' : ''}">
         <div class="pilewrap">${G.pozzetti[0].length ? backHTML() : slotHTML()}</div>
-        <div class="cap">Pozzetto vostro<b>${G.teams[0].pozzetto ? 'preso' : G.pozzetti[0].length}</b></div>
+        <div class="cap">${stretto ? 'Vostro' : 'Pozzetto vostro'}<b>${G.teams[0].pozzetto ? 'preso' : G.pozzetti[0].length}</b></div>
       </div>
       <div class="pile ${G.teams[1].pozzetto ? 'dim' : ''}">
         <div class="pilewrap">${G.pozzetti[1].length ? backHTML() : slotHTML()}</div>
-        <div class="cap">Pozzetto loro<b>${G.teams[1].pozzetto ? 'preso' : G.pozzetti[1].length}</b></div>
+        <div class="cap">${stretto ? 'Loro' : 'Pozzetto loro'}<b>${G.teams[1].pozzetto ? 'preso' : G.pozzetti[1].length}</b></div>
       </div>
     </div>`;
 
@@ -221,6 +235,9 @@ function render() {
   if (dealCount !== null) mano = mano.slice(0, dealCount);
   if (pozzettoAnim && pozzettoAnim.p === HUMAN) mano = mano.slice(0, pozzettoAnim.n);
   const hand = mano.map((c, i) => cardHTML(c, sel.has(c.id) ? 'sel' : '', i)).join('');
+  // su schermo stretto le carte si sovrappongono come quando le tieni in mano:
+  // il passo si calcola sulla larghezza disponibile, così stanno in una riga sola
+  const stile = ventaglio(mano.length);
 
   /* — azioni — */
   const canMeld = calataValida;
@@ -244,18 +261,18 @@ function render() {
   const nMano = G.hands[HUMAN].length;
   $('board').className = 'panel board' + (myTurn && dealCount === null ? ' turno' : '');
   $('board').innerHTML = `
-    <section class="zone">
+    <section class="zone posti">
       <div class="seat-label">${G.mode === '2v2' ? 'Avversari' : 'Avversario'} ${teamChips(1)}</div>
       <div class="seats">${seatsOf(1)}</div>
     </section>
-    <section class="zone">
+    <section class="zone giochi">
       <div class="seat-label">I loro giochi</div>
       <div class="melds" style="--cw:${oppM.cw}px">${oppMelds}</div>
     </section>
 
     <section class="zone mid"><div class="center">${center}</div></section>
 
-    <section class="zone">
+    <section class="zone giochi">
       <div class="seat-label">I vostri giochi ${teamChips(0)}</div>
       <div class="melds zona ${calataValida ? 'armata' : ''}" id="my-melds" style="--cw:${myM.cw}px">${myMelds}</div>
       ${G.mode === '2v2' ? `<div class="seats" style="margin-top:12px">${seatsOf(0)}</div>` : ''}
@@ -265,7 +282,7 @@ function render() {
       <div class="seat-label">La tua mano <b>${nMano} ${nMano === 1 ? 'carta' : 'carte'}</b>
         ${sel.size ? `<span class="chip on">${sel.size} scelte</span>` : ''}
         <span class="chip">trascina per riordinare</span></div>
-      <div class="hand ${dealing ? 'deal' : ''}" id="hand">${hand}</div>
+      <div class="hand ${dealing ? 'deal' : ''} ${stile.cls}" id="hand" style="${stile.css}">${hand}</div>
       <div class="actions">
         <button class="btn primary" data-a="meld" ${canMeld ? '' : 'disabled'}>Cala</button>
         <button class="btn" data-a="discard" ${canDiscard ? '' : 'disabled'}>Scarta</button>
@@ -644,38 +661,142 @@ function newGameDialog() {
 }
 
 const RULES_HTML = `
-<p>Si gioca con <b>due mazzi francesi più 4 jolly</b>, 108 carte in tutto. A ogni giocatore vanno
-<b>11 carte</b>; si formano due <b>pozzetti</b> da 11 carte, uno per squadra; il resto è il tallone.</p>
-<h3 style="font-size:14px;margin:14px 0 4px">Il turno</h3>
+<p class="fonte">Sintesi del <b>codice di gara</b>, articolo per articolo, con le citazioni
+essenziali. Il testo integrale è dei rispettivi enti: qui trovi il riassunto e i collegamenti
+per leggerlo per intero.</p>
+
+<h3>Art. 3 — Il mazzo</h3>
 <ul>
-  <li>Peschi <b>una carta dal tallone</b> oppure prendi <b>tutte le carte del monte scarti</b>.</li>
-  <li>Puoi calare giochi nuovi e attaccare carte ai giochi già aperti della tua squadra.</li>
-  <li>Chiudi il turno <b>scartando una carta</b>.</li>
+  <li>Due mazzi francesi più quattro jolly: <b>108 carte</b>.</li>
+  <li>I <b>2</b> si chiamano <b>pinelle</b>. Pinelle e jolly sono le <b>matte</b>.</li>
 </ul>
-<h3 style="font-size:14px;margin:14px 0 4px">I giochi</h3>
+
+<h3>Art. 4 — Distribuzione</h3>
 <ul>
-  <li><b>Scala</b>: 3 o più carte consecutive dello stesso seme, fino a 13. L'asso vale sopra il re o sotto il due.</li>
-  <li><b>Tris</b>: 3 o più carte dello stesso valore, fino a 8.</li>
-  <li>Jolly e pinelle (i 2) fanno da <b>matta</b>. Ogni gioco può contenere <b>una sola matta</b>.</li>
-  <li>Il 2 del seme della scala, messo al suo posto naturale, <b>non</b> è una matta.</li>
-  <li>Quando arriva la carta che la matta rappresenta, la matta si sposta automaticamente a un'estremità del gioco.</li>
+  <li><b>11 carte</b> a testa, una alla volta, in senso orario.</li>
+  <li>Due <b>pozzetti</b> da 11 carte, uno per linea, presi da sotto il mazzo.</li>
+  <li>«Al via dell'arbitro, il mazziere <b>scoprirà la prima carta dal tallone</b>»: il monte
+      scarti non parte mai vuoto, e chi apre può già prenderlo.</li>
 </ul>
-<h3 style="font-size:14px;margin:14px 0 4px">Pozzetto e chiusura</h3>
+
+<h3>Art. 5 e 6 — Il turno</h3>
 <ul>
-  <li>Chi finisce le carte prende gli 11 del pozzetto della propria squadra. Se le finisce senza scartare, il pozzetto si prende <b>al volo</b> e il turno continua.</li>
-  <li>Per chiudere servono tre cose: pozzetto preso, <b>almeno un burraco</b>, e nessuna carta in mano.</li>
-  <li>Non si può chiudere scartando un jolly o una pinella.</li>
+  <li>Si pesca <b>una carta dal tallone</b> oppure si prende <b>tutto il monte scarti</b>.</li>
+  <li>Si aprono giochi nuovi e si attaccano carte ai giochi già aperti della propria linea.</li>
+  <li>«La prima carta che formerà il monte degli scarti sarà posta tra il tallone e il giocatore
+      che scarta».</li>
 </ul>
-<h3 style="font-size:14px;margin:14px 0 4px">Punteggi</h3>
+
+<h3>Art. 7 — Lo scarto</h3>
 <ul>
-  <li>Jolly 30 · pinella (2) 20 · asso 15 · dal 8 al re 10 · dal 3 al 7 cinque punti.</li>
-  <li><b>Burraco</b> = gioco di almeno 7 carte. <b>Pulito</b> (senza matte) 200 · <b>semipulito</b> (matta in coda ad almeno 7 carte naturali) 150 · <b>sporco</b> 100.</li>
-  <li>Bonus di <b>chiusura</b>: 100. <b>Pozzetto non preso</b>: −100.</li>
-  <li>Le carte calate si sommano, quelle rimaste in mano si sottraggono. Vince chi arriva prima al traguardo.</li>
+  <li>Il turno si chiude <b>scartando una carta</b>. «Dopo lo scarto nessuna altra azione è
+      consentita».</li>
+</ul>
+
+<h3>Art. 8 e 9 — Scale e tris</h3>
+<ul>
+  <li><b>Scala</b>: «tre o più carte ordinate obbligatoriamente dello stesso seme», da 3 a 13.
+      L'asso sta sopra il re oppure sotto il due.</li>
+  <li><b>Tris</b>: «tre o più carte uguali, anche dello stesso seme», da 3 a 8.</li>
+  <li>«Ogni gioco aperto può contenere <b>una sola matta</b>».</li>
+  <li>Il 2 del seme della scala, al suo posto naturale, <b>non</b> conta come matta: in quel caso
+      nel gioco ci può stare anche un'altra matta.</li>
+</ul>
+
+<h3>Art. 10 — Spostamento della matta</h3>
+<ul>
+  <li>«Nelle sequenze i jolly o le pinelle possono essere <b>sostituiti solo dalla carta che
+      rappresentano</b>. Devono obbligatoriamente restare nei giochi già aperti».</li>
+  <li>Matta <b>a un'estremità</b>: è libera, può scivolare per far posto a una carta più alta o
+      più bassa.</li>
+  <li>Matta <b>chiusa fra due carte</b>: si sposta soltanto se cali proprio la carta che
+      rappresenta. Non la si scaccia con un'altra matta.</li>
+</ul>
+
+<h3>Art. 12 — Il pozzetto</h3>
+<ul>
+  <li>Chi esaurisce le carte prende gli <b>11 del pozzetto</b> della propria linea e prosegue.</li>
+  <li>Finirle <b>senza scartare</b> è andare a pozzetto <b>al volo</b>: il turno continua.</li>
+</ul>
+
+<h3>Art. 17 — Chiusura e fine della mano</h3>
+<ul>
+  <li>Per chiudere servono tre cose insieme: <b>pozzetto preso</b>, <b>almeno un burraco</b>, e
+      «uno dei due componenti della linea ha ultimato tutte le carte <b>scartandone una</b>».</li>
+  <li>Non si chiude scartando un jolly o una pinella.</li>
+  <li>Tallone esaurito: «le ultime due carte del tallone <b>non sono giocabili</b>, quindi il gioco
+      si chiude con lo scarto del giocatore che ha pescato la terzultima carta; non è possibile
+      proseguire utilizzando le carte del monte degli scarti».</li>
+</ul>
+
+<h3>Art. 18 — Punteggi</h3>
+<ul>
+  <li>Jolly 30 · pinella 20 · asso 15 · dall'8 al re 10 · dal 3 al 7 cinque.</li>
+  <li><b>Burraco</b>: gioco di almeno 7 carte. <b>Pulito</b> 200 · <b>semipulito</b> 150 ·
+      <b>sporco</b> 100.</li>
+  <li>Bonus di <b>chiusura</b> 100. <b>Pozzetto non preso</b> −100.</li>
+  <li>Le carte calate si sommano, quelle rimaste in mano si sottraggono.</li>
+</ul>
+
+<h3>Scelte di questa app</h3>
+<ul>
+  <li><b>Semipulito</b>: gioco di 8 o più carte con la matta a un'estremità, cioè con almeno 7
+      carte naturali di fila.</li>
+  <li><b>Super burraco</b> (250) e <b>burraco reale</b> (300) del codice FGB: non conteggiati.</li>
+  <li>Oltre i 400 turni una mano si chiude come per tallone esaurito. Non è una regola: è una rete
+      di sicurezza perché il gioco non si impianti. In 300 partite simulate non è mai scattata.</li>
+</ul>
+
+<h3>Fonti</h3>
+<ul class="fonti">
+  <li><a href="https://www.federazionegiocoburraco.it/Files/Documenti/c-CodiceDiGara-FGB.pdf"
+      target="_blank" rel="noopener">Codice di gara — Federazione Gioco Burraco</a></li>
+  <li><a href="https://www.aics.it/wp-content/uploads/2024/03/REGOLAMENTO-BURRACO-2024.pdf"
+      target="_blank" rel="noopener">Regolamento Burraco 2024 — AICS / FITAB</a></li>
+  <li><a href="https://www.eburraco.com/le-matte-e-lo-scarto-nel-gioco-del-burraco/"
+      target="_blank" rel="noopener">Le matte e lo scarto — approfondimento sullo spostamento</a></li>
 </ul>`;
 
+/** Menu del telefono: le azioni che sul PC stanno nella testata. */
+function menuDialog() {
+  modal('Menu', 'Tavolo da Burraco',
+    `<div class="opts">
+       <button class="btn" id="m-tema" style="text-align:left">Cambia tema chiaro / scuro</button>
+       <button class="btn" id="m-reg" style="text-align:left">Regolamento ufficiale</button>
+       <button class="btn primary" id="m-nuova" style="text-align:left">Nuova partita</button>
+     </div>`,
+    `<button class="btn ghost" id="m-ok">Chiudi</button>`);
+  $('m-ok').onclick = closeModal;
+  $('m-tema').onclick = () => { cambiaTema(); closeModal(); };
+  $('m-reg').onclick = () => { closeModal(); rulesDialog(); };
+  $('m-nuova').onclick = () => { closeModal(); newGameDialog(); };
+}
+
+function punteggioDialog() {
+  const t = G.target;
+  const nomi = G.mode === '2v2' ? ['Noi (Tu &amp; Nord)', 'Loro (Est &amp; Ovest)'] : ['Tu', 'Computer'];
+  const righe = [0, 1].map(i => {
+    const pct = Math.max(0, Math.min(100, G.matchScore[i] / t * 100));
+    return `<tr><td>${nomi[i]}<div class="bar"><i style="width:${pct}%"></i></div></td>
+      <td class="n">${G.matchScore[i]}</td></tr>`;
+  }).join('');
+  const cronaca = G.log.slice(-30).reverse().map(e => {
+    const l = logLine(e);
+    return l.h ? `<div class="${l.c || ''}">${l.h}</div>` : '';
+  }).join('');
+  modal('Punteggio',
+    `Partita a ${t} punti · mano n. ${G.handNo}`,
+    `<div class="score">
+       <table><tr><th>Squadra</th><th style="text-align:right">Punti</th></tr>${righe}</table>
+     </div>
+     <div class="side-h" style="padding-left:0;margin-top:14px">Cronaca <span>ultime mosse</span></div>
+     <div class="log" style="max-height:240px;padding:8px 0 0">${cronaca}</div>`,
+    `<button class="btn primary" id="m-ok">Chiudi</button>`);
+  $('m-ok').onclick = closeModal;
+}
+
 function rulesDialog() {
-  modal('Regolamento', 'Burraco italiano, regole ufficiali.', RULES_HTML,
+  modal('Regolamento ufficiale', 'Burraco italiano, per articoli del codice di gara.', RULES_HTML,
     `<button class="btn primary" id="m-ok">Chiudi</button>`);
   $('m-ok').onclick = closeModal;
 }
@@ -689,13 +810,16 @@ window.addEventListener('resize', () => {
   ridisegno = setTimeout(() => { if (G) render(); }, 150);
 });
 $('btn-rules').onclick = rulesDialog;
+$('btn-score').onclick = punteggioDialog;
 $('btn-new').onclick = newGameDialog;
-$('btn-theme').onclick = () => {
+function cambiaTema() {
   const cur = document.documentElement.getAttribute('data-theme');
   const next = cur === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
   try { localStorage.setItem('burraco.tema', next); } catch (e) { }
-};
+}
+$('btn-theme').onclick = cambiaTema;
+$('btn-menu').onclick = menuDialog;
 const savedTheme = loadTheme();
 if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
 
