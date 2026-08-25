@@ -149,9 +149,11 @@ function meldsHTML(team, clickable) {
     return (a.type === 'set' ? a.rank : a.lo) - (b.type === 'set' ? b.rank : b.lo);
   });
   const carte = melds.reduce((s, m) => s + m.slots.length, 0);
-  const stretto = window.innerWidth < 620;
+  const w = window.innerWidth;
   let cw = carte <= 14 ? 44 : carte <= 24 ? 39 : carte <= 34 ? 34 : carte <= 46 ? 30 : 27;
-  if (stretto) cw = Math.round(cw * 0.62);
+  // stretto: si rimpicciolisce per starci; largo: si ingrandisce perché c'è posto
+  const scala = w < 620 ? 0.62 : w < 1100 ? 1 : w < 1560 ? 1.32 : 1.52;
+  cw = Math.round(cw * scala);
   return {
     cw,
     html: melds.map(m => meldHTML(m, clickable(m))).join(''),

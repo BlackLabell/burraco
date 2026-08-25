@@ -486,3 +486,77 @@ details.rules b{color:var(--ink)}
   .pile{--cw:40px}
   .seat .fan{--cw:23px}
 }
+
+/* ══════════════════════════════════════════════════════════════
+   PC — schermo largo, tutto più grande.
+   Le misure delle carte sono legate a --cw: basta alzarlo e
+   numeri, semi e figure crescono insieme, senza sfocature.
+   ══════════════════════════════════════════════════════════════ */
+@media (min-width:1100px){
+  body{font-size:16.5px}
+  .wrap{max-width:1500px; padding:22px 24px 34px; gap:16px}
+  .layout{grid-template-columns:minmax(0,1fr) 336px; gap:18px}
+
+  .brand p{font-size:12.5px}
+  .btn{padding:9px 17px; font-size:14px}
+
+  .zone{padding:16px 20px}
+  .seat-label{font-size:11.5px}
+  .seat-label b{font-size:15px}
+  .chip{font-size:11px; padding:3px 10px}
+
+  .hand{--cw:82px; gap:8px}
+  .board.turno .hand{--cw:94px}
+  .hand .card.gap-before{margin-left:32px}
+
+  .pile{--cw:72px; gap:8px}
+  .pile .cap{font-size:11.5px}
+  .pile .cap b{font-size:18px}
+  .pilewrap .count{min-width:25px; font-size:12px; padding:2px 6px}
+  .center{gap:22px}
+  .center .piles{gap:32px}
+  .center .pozzetti{gap:22px}
+
+  .seat .fan{--cw:42px}
+  .seat .fan .card + .card{margin-left:-25px}
+  .seat .who{font-size:12.5px}
+  .seats{gap:34px}
+
+  .state .now{font-size:22px}
+  .state .step{font-size:14px}
+  .state li{font-size:13px}
+
+  .melds{gap:13px; min-height:92px}
+  .meld{padding:7px 9px 5px}
+  .meld .punti{font-size:12.5px}
+  .melds.zona .placeholder{font-size:14px}
+  .empty-note{font-size:14px}
+
+  .actions{gap:10px; padding-top:15px; margin-top:15px}
+  .hint{font-size:14.5px}
+
+  .side-h{font-size:17px; padding:12px 15px}
+  .side-h span{font-size:11.5px}
+  .score{padding:15px}
+  .score td{font-size:15.5px}
+  .score td.n{font-size:23px}
+  .log{font-size:13.5px; padding:10px 15px 15px; max-height:290px}
+  details.rules summary{font-size:14.5px}
+  details.rules p, details.rules li{font-size:13.5px}
+}
+
+/* schermi molto larghi: un altro scatto */
+@media (min-width:1560px){
+  body{font-size:17.5px}
+  .wrap{max-width:1720px}
+  .layout{grid-template-columns:minmax(0,1fr) 360px}
+  .hand{--cw:94px; gap:9px}
+  .board.turno .hand{--cw:108px}
+  .pile{--cw:84px}
+  .pile .cap b{font-size:20px}
+  .seat .fan{--cw:48px}
+  .seat .fan .card + .card{margin-left:-29px}
+  .state .now{font-size:25px}
+  .melds{min-height:106px}
+  .zone{padding:19px 24px}
+}
