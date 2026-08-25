@@ -43,6 +43,33 @@ function loadTheme() {
    Taglio classico: indice (valore sopra, seme sotto) nell'angolo in
    alto a sinistra, ripetuto capovolto in basso a destra, e il segno
    grande al centro. Le figure mostrano la lettera incorniciata.     */
+
+/* Disposizione dei semi come sulle carte vere: tre colonne
+   (sinistra, centro, destra) e sette righe, dalla 0 in alto alla 6 in
+   basso. I semi della metà bassa sono capovolti, come stampati davvero. */
+const COL = { l: 36, c: 50, r: 64 };
+const SEMI = {
+  2: [['c', 0], ['c', 6]],
+  3: [['c', 0], ['c', 3], ['c', 6]],
+  4: [['l', 0], ['r', 0], ['l', 6], ['r', 6]],
+  5: [['l', 0], ['r', 0], ['c', 3], ['l', 6], ['r', 6]],
+  6: [['l', 0], ['r', 0], ['l', 3], ['r', 3], ['l', 6], ['r', 6]],
+  7: [['l', 0], ['r', 0], ['c', 1.5], ['l', 3], ['r', 3], ['l', 6], ['r', 6]],
+  8: [['l', 0], ['r', 0], ['c', 1.5], ['l', 3], ['r', 3], ['c', 4.5], ['l', 6], ['r', 6]],
+  9: [['l', 0], ['r', 0], ['l', 2], ['r', 2], ['c', 3], ['l', 4], ['r', 4], ['l', 6], ['r', 6]],
+  10: [['l', 0], ['r', 0], ['c', 1], ['l', 2], ['r', 2], ['l', 4], ['r', 4], ['c', 5], ['l', 6], ['r', 6]],
+};
+function semiHTML(r, S) {
+  const posti = SEMI[r];
+  if (!posti) return '';
+  const pips = posti.map(([col, riga]) => {
+    const y = 15 + riga * (70 / 6);
+    const giu = riga > 3 ? ' scale(-1)' : '';
+    return `<i style="left:${COL[col]}%; top:${y.toFixed(2)}%; transform:translate(-50%,-50%)${giu}">${S}</i>`;
+  }).join('');
+  return `<span class="semi">${pips}</span>`;
+}
+
 function cardHTML(c, extra = '', i = 0) {
   if (c.r === 0) {
     return `<div class="card jolly ${extra}" style="--i:${i}" data-id="${c.id}" title="Jolly">
@@ -55,9 +82,11 @@ function cardHTML(c, extra = '', i = 0) {
   const R = E.RANK_LABEL[c.r], S = E.SUIT_SYM[c.s];
   const stretta = c.r === 10 ? 'dieci' : '';
   const figura = c.r >= 11 && c.r <= 13;
+  // il segno grande serve quando la carta è piccola (giochi calati);
+  // la disposizione a semi compare solo dove c'è spazio per leggerla
   const centro = figura
     ? `<span class="mid"><span class="figura">${R}</span></span>`
-    : `<span class="mid"><span class="pip ${c.r === 14 ? 'asso' : ''}">${S}</span></span>`;
+    : `<span class="mid"><span class="pip ${c.r === 14 ? 'asso' : ''}">${S}</span>${semiHTML(c.r, S)}</span>`;
   const idx = `<b>${R}</b><i>${S}</i>`;
   return `<div class="card ${red} ${stretta} ${extra}" style="--i:${i}" data-id="${c.id}" title="${E.cardLabel(c)}">
     <span class="idx">${idx}</span>${centro}<span class="idx giu">${idx}</span>
@@ -152,7 +181,7 @@ function meldsHTML(team, clickable) {
   const w = window.innerWidth;
   let cw = carte <= 14 ? 44 : carte <= 24 ? 39 : carte <= 34 ? 34 : carte <= 46 ? 30 : 27;
   // stretto: si rimpicciolisce per starci; largo: si ingrandisce perché c'è posto
-  const scala = w < 620 ? 0.62 : w < 1100 ? 1 : w < 1560 ? 1.32 : 1.52;
+  const scala = w < 620 ? 0.82 : w < 1100 ? 1 : w < 1560 ? 1.32 : 1.52;
   cw = Math.round(cw * scala);
   return {
     cw,
@@ -167,8 +196,10 @@ function meldsHTML(team, clickable) {
 function ventaglio(n) {
   const stretto = window.innerWidth < 760;
   if (!stretto || n < 2) return { cls: '', css: '' };
-  const cw = window.innerWidth < 400 ? 52 : 58;
-  const spazio = window.innerWidth - 34;          // margini della fascia
+  // le carte in mano sono la cosa che si guarda di più: circa un quinto
+  // della larghezza dello schermo, come nei giochi di carte fatti bene
+  const cw = Math.max(58, Math.min(84, Math.round(window.innerWidth * 0.195)));
+  const spazio = window.innerWidth - 24;          // margini della fascia
   const passo = Math.min(cw + 5, Math.max(cw * 0.34, (spazio - cw) / (n - 1)));
   return { cls: 'ventaglio', css: `--cw:${cw}px; --passo:${passo.toFixed(1)}px` };
 }
@@ -191,6 +222,24 @@ function render() {
   const canDraw = myTurn && G.phase === 'draw';
   const scartaQui = myTurn && G.phase === 'meld' && scelte.length === 1;
 
+  /* Il suggerimento sta sotto "Tocca a te", nella banda centrale: è lì che
+     si guarda per capire di chi è il turno, e sotto la mano si guadagna una riga. */
+  const quantiAccettano = G.teams[0].melds.filter(accetta).length;
+  let hint = msg;
+  if (!hint) {
+    if (dealCount !== null) hint = 'Distribuzione in corso…';
+    else if (G.handOver) hint = 'Mano conclusa.';
+    else if (busy || G.turn !== HUMAN) hint = '';
+    else if (G.phase === 'draw') hint = 'Pesca dal tallone, o prendi il monte scarti.';
+    else if (calataValida) hint = 'Clicca la zona di calata per aprire il gioco.';
+    else if (scelte.length >= 3) hint = 'Queste carte non formano una scala né un tris.';
+    else if (scelte.length === 1) hint = quantiAccettano
+      ? 'Clicca il monte scarti per scartarla, o il gioco evidenziato per attaccarla.'
+      : 'Clicca il monte scarti per scartarla.';
+    else if (scelte.length === 2) hint = 'Servono almeno 3 carte per aprire un gioco nuovo.';
+    else hint = 'Scegli le carte dalla mano. Trascinale per riordinarle.';
+  }
+
   // il monte scarti si vede tutto: le ultime carte a ventaglio, la più recente in cima
   const stretto = window.innerWidth < 760;
   const MOSTRA = stretto ? 3 : 9;
@@ -202,7 +251,10 @@ function render() {
 
   const center = `
     <div class="state">
-      <div class="now">${G.handOver ? 'Mano finita' : G.turn === HUMAN ? 'Tocca a te' : 'Turno di ' + G.names[G.turn]}</div>
+      <div>
+        <div class="now">${G.handOver ? 'Mano finita' : G.turn === HUMAN ? 'Tocca a te' : 'Turno di ' + G.names[G.turn]}</div>
+        ${hint ? `<div class="hint ${msgErr ? 'err' : ''}">${hint}</div>` : ''}
+      </div>
     </div>
     <div class="piles">
       <div class="pile ${canDraw && G.stock.length ? 'click' : ''} ${G.stock.length ? '' : 'dim'}" data-act="stock">
@@ -244,21 +296,6 @@ function render() {
   /* — azioni — */
   const canMeld = calataValida;
   const canDiscard = scartaQui;
-  const quantiAccettano = G.teams[0].melds.filter(accetta).length;
-  let hint = msg;
-  if (!hint) {
-    if (dealCount !== null) hint = 'Distribuzione in corso…';
-    else if (G.handOver) hint = 'Mano conclusa.';
-    else if (busy || G.turn !== HUMAN) hint = `Gioca ${G.names[G.turn]}…`;
-    else if (G.phase === 'draw') hint = 'Clicca il tallone per pescare una carta, o il monte scarti per prenderlo tutto.';
-    else if (calataValida) hint = 'Clicca la zona di calata per aprire il gioco.';
-    else if (scelte.length >= 3) hint = 'Queste carte non formano una scala né un tris.';
-    else if (scelte.length === 1) hint = quantiAccettano
-      ? 'Clicca il monte scarti per scartarla, o il gioco evidenziato per attaccarla.'
-      : 'Clicca il monte scarti per scartarla.';
-    else if (scelte.length === 2) hint = 'Servono almeno 3 carte per aprire un gioco nuovo.';
-    else hint = 'Scegli le carte dalla mano. Trascinale per riordinarle.';
-  }
 
   const nMano = G.hands[HUMAN].length;
   $('board').className = 'panel board' + (myTurn && dealCount === null ? ' turno' : '');
@@ -281,20 +318,37 @@ function render() {
     </section>
 
     <section class="zone mano">
-      <div class="seat-label">La tua mano <b>${nMano} ${nMano === 1 ? 'carta' : 'carte'}</b>
+      <div class="seat-label mano-h">La tua mano <b>${nMano} ${nMano === 1 ? 'carta' : 'carte'}</b>
         ${sel.size ? `<span class="chip on">${sel.size} scelte</span>` : ''}
-        <span class="chip">trascina per riordinare</span></div>
+        <button class="btn ghost mini" data-a="sort" title="Cambia l'ordine della mano">Per ${sortMode === 'rank' ? 'seme' : 'valore'}</button></div>
       <div class="hand ${dealing ? 'deal' : ''} ${stile.cls}" id="hand" style="${stile.css}">${hand}</div>
       <div class="actions">
         <button class="btn primary" data-a="meld" ${canMeld ? '' : 'disabled'}>Cala</button>
         <button class="btn" data-a="discard" ${canDiscard ? '' : 'disabled'}>Scarta</button>
-        <button class="btn ghost" data-a="sort">Riordina per ${sortMode === 'rank' ? 'seme' : 'valore'}</button>
-        <span class="hint ${msgErr ? 'err' : ''}">${hint}</span>
       </div>
     </section>`;
 
+  adattaGiochi();
   renderScore();
   renderLog();
+}
+
+/**
+ * Nessun gioco tagliato a metà: se la scala più lunga non ci sta nella sua
+ * fascia, le carte di quella fascia rimpiccioliscono quel tanto che basta.
+ * Si misura dopo aver disegnato, perché solo il browser sa quanto spazio c'è.
+ */
+function adattaGiochi() {
+  for (const el of document.querySelectorAll('.zone.giochi .melds')) {
+    const st = getComputedStyle(el);
+    const spazio = el.clientHeight - parseFloat(st.paddingTop) - parseFloat(st.paddingBottom);
+    if (spazio <= 0) continue;
+    let piuAlto = 0;
+    for (const m of el.children) piuAlto = Math.max(piuAlto, m.offsetHeight);
+    if (piuAlto <= spazio) continue;
+    const cw = parseFloat(el.style.getPropertyValue('--cw')) || 44;
+    el.style.setProperty('--cw', Math.max(16, Math.floor(cw * (spazio - 2) / piuAlto)) + 'px');
+  }
 }
 
 function renderScore() {

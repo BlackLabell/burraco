@@ -5,7 +5,7 @@
 Burraco italiano contro il computer, uno contro uno o a coppie, con le regole ufficiali.
 Gira nel browser, si installa sul telefono e funziona anche senza connessione.
 
-**Versione pubblicata:** `burraco-v10` — 25 agosto 2026
+**Versione pubblicata:** `burraco-v11` — 25 agosto 2026
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server, nessun account
 a pagamento, nessun dominio da comprare.
 
@@ -18,6 +18,20 @@ a pagamento, nessun dominio da comprare.
 ## Novità
 
 Le voci più recenti stanno in alto. Ogni riga corrisponde a una versione di `sw.js`.
+
+### `burraco-v11` — 25 agosto 2026
+- **Carte a semi veri.** In mano, sui mazzi e nelle finestre i semi sono disposti come sulle
+  carte stampate: il 7 di picche ha sette picche nella loro posizione, quelli della metà bassa
+  capovolti. Nei giochi calati resta il segno grande, che a quelle misure si legge meglio.
+- **Telefono più leggibile.** Le carte in mano valgono circa un quinto della larghezza dello
+  schermo (76 px su un telefono da 390) e le carte dei giochi calati sono un terzo più grandi.
+- **Nessun gioco tagliato.** Se la scala più lunga non ci sta nella sua fascia, le carte di
+  quella fascia rimpiccioliscono da sole quel tanto che basta a farla stare intera.
+- **Una riga in meno sotto la mano.** Sono rimasti solo *Cala* e *Scarta*: il cambio d'ordine è
+  diventato un pulsante nell'intestazione della mano e il suggerimento è passato sotto
+  "Tocca a te", nella banda centrale.
+- L'avversario sta di fianco al suo ventaglio invece che sotto, e le figure mostrano la lettera
+  grande senza cornice: nel ventaglio mezza cornice sembrava un errore.
 
 ### `burraco-v10` — 25 agosto 2026
 - **Interfaccia PC più grande.** Due scatti: da 1100 px di larghezza il testo passa a 16,5 px,
@@ -59,7 +73,6 @@ Le voci più recenti stanno in alto. Ogni riga corrisponde a una versione di `sw
 
 ## Da fare
 
-- Carte disegnate **a semi veri** (il 7 di cuori con sette cuori disposti come nella carta vera).
 - Partita a coppie con i **quattro giocatori a croce**.
 - Animazioni anche per la pescata singola e per la calata.
 - **Gioco online** con altre persone.
@@ -142,7 +155,7 @@ migliaia di partite. È quello che fanno i test.
 
 1. Cambia il codice.
 2. `npm test` — se un test si rompe, hai toccato una regola.
-3. **Alza `VERSIONE` in `sw.js`** (`burraco-v10` → `burraco-v11`). Senza questo passaggio chi ha
+3. **Alza `VERSIONE` in `sw.js`** (`burraco-v11` → `burraco-v12`). Senza questo passaggio chi ha
    già aperto l'app continua a vedere la versione vecchia presa dalla cache.
 4. Aggiungi una voce in **Novità** qui sopra e aggiorna la versione in cima al file.
 5. Carica su `main`.
