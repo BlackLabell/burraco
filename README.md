@@ -1,6 +1,6 @@
 # Tavolo da Burraco
 
-### ▶ [Apri l'app — blacklabell.github.io/test](https://blacklabell.github.io/burraco/)
+### ▶ [Apri l'app — blacklabell.github.io/burraco](https://blacklabell.github.io/burraco/)
 
 Burraco italiano contro il computer, uno contro uno o a coppie, con le regole ufficiali.
 Gira nel browser, si installa sul telefono e funziona anche senza connessione.
