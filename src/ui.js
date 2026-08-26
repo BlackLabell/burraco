@@ -2,6 +2,7 @@
    BURRACO — interfaccia
    ============================================================ */
 import E from './engine.js';
+import Rete, { RITMO } from './rete.js';
 
 const $ = id => document.getElementById(id);
 
@@ -12,14 +13,22 @@ let busy = false, dealing = false;
 let sortMode = 'rank';
 let handOrder = [];   // ordine scelto a mano dal giocatore
 let dealCount = null;     // quante carte sono già state distribuite (null = distribuzione finita)
+let online = false;       // partita contro una persona, non contro il computer
 let pozzettoAnim = null;  // {p, n}: le carte del pozzetto che stanno arrivando in mano a p
-const HUMAN = 0;
+/* Il proprio posto al tavolo. Contro il computer è sempre il posto 0;
+   online, chi entra in un tavolo già aperto siede al posto 1. Tutto il
+   disegno parte da qui: "i vostri giochi" sono quelli della squadra di
+   HUMAN, non della squadra 0. */
+let HUMAN = 0;
+const MIA = () => (G ? G.teamOf[HUMAN] : 0);
+const LORO = () => 1 - MIA();
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 /* ---------- Persistenza (best effort) ---------- */
 const SAVE = 'burraco.stato.v1';
 function save() {
+  if (online) return salvaBiglietto();   // online basta il codice: le mosse stanno in rete
   try { localStorage.setItem(SAVE, JSON.stringify({ g: G, sortMode, handOrder })); } catch (e) { }
 }
 function load() {
@@ -35,6 +44,22 @@ function load() {
   } catch (e) { }
   return null;
 }
+/* Il biglietto del tavolo online: codice e posto. Basta a rientrare —
+   le mosse stanno tutte dall'altra parte, il tavolo si ricostruisce. */
+const BIGLIETTO = 'burraco.online.v1';
+function salvaBiglietto() {
+  try {
+    if (online && Rete.attiva) localStorage.setItem(BIGLIETTO, JSON.stringify({ codice: Rete.codice, posto: Rete.posto }));
+    else localStorage.removeItem(BIGLIETTO);
+  } catch (e) { }
+}
+function biglietto() {
+  try {
+    const d = JSON.parse(localStorage.getItem(BIGLIETTO) || 'null');
+    return d && d.codice ? d : null;
+  } catch (e) { return null; }
+}
+
 function loadTheme() {
   try { return localStorage.getItem('burraco.tema'); } catch (e) { return null; }
 }
@@ -184,7 +209,7 @@ const rett = el => (el ? el.getBoundingClientRect() : null);
 
 const elMazzo = () => document.querySelector('.pile[data-act="stock"] .pilewrap');
 const elScarti = () => document.querySelector('.pile.scartiera .pilewrap');
-const elGiochiDi = team => document.querySelector(team === HUMAN
+const elGiochiDi = team => document.querySelector(team === MIA()
   ? '#my-melds' : '.zone.giochi:not(.mia) .melds');
 const elPosto = p => document.querySelector(`.seat[data-p="${p}"] .fan`);
 
@@ -331,8 +356,8 @@ function render() {
   const accetta = m => puoAgire && E.solveWith(m, scelte) !== null;
 
   /* — avversari — */
-  const oppM = meldsHTML(1, () => false);
-  const oppMelds = G.teams[1].melds.length
+  const oppM = meldsHTML(LORO(), () => false);
+  const oppMelds = G.teams[LORO()].melds.length
     ? oppM.html
     : `<p class="empty-note">Non hanno ancora calato niente.</p>`;
 
@@ -342,7 +367,7 @@ function render() {
 
   /* Il suggerimento sta sotto "Tocca a te", nella banda centrale: è lì che
      si guarda per capire di chi è il turno, e sotto la mano si guadagna una riga. */
-  const quantiAccettano = G.teams[0].melds.filter(accetta).length;
+  const quantiAccettano = G.teams[MIA()].melds.filter(accetta).length;
   let hint = msg;
   if (!hint) {
     if (dealCount !== null) hint = 'Distribuzione in corso…';
@@ -373,9 +398,9 @@ function render() {
   const mazzi = `
     <button class="btn ghost mini colonna" data-a="menu" title="Menu" aria-label="Menu">☰</button>
     <button class="btn ghost mini colonna" data-a="punti" title="Punteggio e cronaca">Punti</button>
-    <div class="pile pozzetto ${G.teams[1].pozzetto ? 'dim' : ''}">
-      <div class="pilewrap">${G.pozzetti[1].length ? backHTML() : slotHTML()}</div>
-      <div class="cap">Loro<b>${G.teams[1].pozzetto ? 'preso' : G.pozzetti[1].length}</b></div>
+    <div class="pile pozzetto ${G.teams[LORO()].pozzetto ? 'dim' : ''}">
+      <div class="pilewrap">${G.pozzetti[LORO()].length ? backHTML() : slotHTML()}</div>
+      <div class="cap">Loro<b>${G.teams[LORO()].pozzetto ? 'preso' : G.pozzetti[LORO()].length}</b></div>
     </div>
     <div class="pile ${canDraw && G.stock.length ? 'click' : ''} ${G.stock.length ? '' : 'dim'}" data-act="stock">
       <div class="pilewrap">${G.stock.length ? backHTML() : slotHTML()}<span class="count">${G.stock.length}</span></div>
@@ -385,9 +410,9 @@ function render() {
       <div class="pilewrap">${montaggio}<span class="count">${G.discard.length}</span></div>
       <div class="cap">${scartaQui ? 'Scarta qui' : 'Scarti'}</div>
     </div>
-    <div class="pile pozzetto ${G.teams[0].pozzetto ? 'dim' : ''}">
-      <div class="pilewrap">${G.pozzetti[0].length ? backHTML() : slotHTML()}</div>
-      <div class="cap">Vostro<b>${G.teams[0].pozzetto ? 'preso' : G.pozzetti[0].length}</b></div>
+    <div class="pile pozzetto ${G.teams[MIA()].pozzetto ? 'dim' : ''}">
+      <div class="pilewrap">${G.pozzetti[MIA()].length ? backHTML() : slotHTML()}</div>
+      <div class="cap">Vostro<b>${G.teams[MIA()].pozzetto ? 'preso' : G.pozzetti[MIA()].length}</b></div>
     </div>`;
 
   const stato = `
@@ -397,7 +422,7 @@ function render() {
     </div>`;
 
   /* — nostri giochi: è anche la zona dove si cala — */
-  const myM = meldsHTML(0, accetta);
+  const myM = meldsHTML(MIA(), accetta);
   let myMelds = myM.html;
   if (calataValida) {
     myMelds += `<div class="drop-note">Clicca qui per calare le ${scelte.length} carte scelte</div>`;
@@ -514,20 +539,26 @@ function descriviPartita(g) {
 
 function mostraHome() {
   const ripresa = inCorso();
+  const rientro = biglietto();
   const nome = loadNome();
+  online = false;
   $('layout').hidden = true;
   $('home').hidden = false;
   $('home').innerHTML = `
     <div class="home-in">
       <div class="home-testa">
         <h1>Tavolo da Burraco</h1>
-        <p>Regole ufficiali italiane · contro il computer</p>
+        <p>Regole ufficiali italiane · da soli o in due</p>
       </div>
       <div class="home-scelte">
         ${ripresa ? `<button class="btn primary grande" data-h="riprendi">
              <b>Riprendi la partita</b><small>${descriviPartita(ripresa)}</small></button>` : ''}
+        ${rientro ? `<button class="btn grande" data-h="rientra">
+             <b>Rientra al tavolo ${rientro.codice}</b><small>La partita online lasciata a metà</small></button>` : ''}
         <button class="btn ${ripresa ? '' : 'primary'} grande" data-h="nuova">
-          <b>Nuova partita</b><small>Uno contro uno o a coppie, a 2005 o 1005 punti</small></button>
+          <b>Gioca contro il computer</b><small>Uno contro uno o a coppie, a 2005 o 1005 punti</small></button>
+        <button class="btn grande" data-h="online">
+          <b>Gioca online</b><small>In due, con un codice di quattro lettere. Niente iscrizione.</small></button>
         <button class="btn grande" data-h="regole">
           <b>Regolamento</b><small>Il codice di gara, articolo per articolo, con le fonti</small></button>
       </div>
@@ -563,6 +594,8 @@ function applicaNome() {
 }
 
 async function avviaPartita(mode, target) {
+  chiudiOnline();
+  HUMAN = 0;
   G = E.newGame(mode, { target });
   applicaNome();
   sel.clear(); say(''); dealing = true; handOrder = [];
@@ -573,12 +606,133 @@ async function avviaPartita(mode, target) {
 }
 
 function riprendiPartita() {
+  chiudiOnline();
+  HUMAN = 0;
   G = load();
   if (!G) return mostraHome();
   applicaNome();
   nascondiHome();
   render();
   if (!G.handOver && G.turn !== HUMAN) runAI();
+}
+
+/* ============================================================
+   PARTITA ONLINE
+   Le due app non si scambiano il tavolo: si scambiano le mosse.
+   Il tavolo lo ricostruisce ognuna per conto suo, dallo stesso seme
+   e con lo stesso motore. Chi apre siede al posto 0, chi entra al 1.
+   ============================================================ */
+
+function chiudiOnline() {
+  online = false;
+  Rete.esci();
+  salvaBiglietto();
+}
+
+/** Parte (o riparte) la partita online, rigiocando le mosse già fatte. */
+async function avviaOnline(partita, posto, mosse) {
+  online = true;
+  HUMAN = posto;
+  G = E.newGame(partita.modo || '1v1', { target: partita.target || 2005, seed: Number(partita.seme) });
+  G.names = [Rete.nomi[0] || 'Chi ha aperto', Rete.nomi[1] || 'Chi è entrato'];
+  applicaNome();
+  sel.clear(); say(''); handOrder = []; busy = false; dealCount = null;
+  nascondiHome();
+  const arretrate = mosse || [];
+  for (const r of arretrate) applicaSenzaVolo(r.mossa);
+  salvaBiglietto();
+  if (!arretrate.length) { dealing = true; await distribuisci(); } else render();
+  ciclaRete();
+}
+
+/** Rimette una mossa vecchia senza animazioni: serve a rientrare. */
+function applicaSenzaVolo(payload) {
+  const { mano, ...mossa } = payload || {};
+  portaAllaMano(mano);
+  E.applicaMossa(G, mossa);
+}
+
+/** Se l'altro è già avanti di una mano, si passa alla mano seguente. */
+function portaAllaMano(mano) {
+  let giri = 0;
+  while (mano && G.handNo < mano && giri++ < 40) {
+    if (!G.handOver) break;
+    E.nextHand(G); sel.clear(); handOrder = [];
+  }
+}
+
+/** Manda la mossa appena fatta all'altro telefono. */
+function spedisci() {
+  if (!online || !Rete.attiva || !G.mosse || !G.mosse.length) return;
+  const ultima = G.mosse[G.mosse.length - 1];
+  Rete.manda(ultima, G.handNo).catch(() => say('Mossa non partita: controlla la rete.', true));
+}
+
+/** Il giro di guardia: ogni tanto si va a vedere se l'altro ha mosso. */
+async function ciclaRete() {
+  while (online && Rete.attiva) {
+    await sleep(RITMO);
+    if (!online || !Rete.attiva) return;
+    if (busy || dealCount !== null || pozzettoAnim) continue;
+    let arrivate = [];
+    try { arrivate = await Rete.nuove(); } catch (e) { continue; }
+    for (const r of arrivate) {
+      if (r.posto === Rete.posto) continue;      // le proprie sono già sul tavolo
+      await mossaDellAltro(r.mossa);
+    }
+  }
+}
+
+/** La mossa dell'altro, mostrata come quella del computer: si vede arrivare. */
+async function mossaDellAltro(payload) {
+  const { mano, ...mossa } = payload || {};
+  portaAllaMano(mano);
+  const p = mossa.p;
+  if (p === undefined || G.handOver) { E.applicaMossa(G, mossa); render(); return; }
+  const squadra = G.teamOf[p];
+  const eraPozzetto = G.teams[squadra].pozzetto;
+  busy = true;
+  try {
+    if (mossa.t === 'p') {
+      say(`${G.names[p]} pesca…`);
+      render(); await sleep(220);
+      const daMazzo = rett(elMazzo()), daScarti = rett(elScarti()), alPosto = rett(elPosto(p));
+      const primaScarti = G.discard.length;
+      E.applicaMossa(G, mossa);
+      const dalMonte = mossa.s === 'pile';
+      const quante = dalMonte ? Math.min(primaScarti, 5) : 1;
+      await vola(Array.from({ length: quante }, () => ({
+        html: backHTML(), da: dalMonte ? daScarti : daMazzo, a: alPosto,
+      })), 280);
+    } else if (mossa.t === 'c' || mossa.t === 'a') {
+      const quante = (mossa.ids || []).length;
+      say(mossa.t === 'a' ? `${G.names[p]} attacca ${quante === 1 ? 'una carta' : quante + ' carte'}`
+                          : `${G.names[p]} cala ${quante} carte`);
+      const dalPosto = rett(elPosto(p)), aiGiochi = postoIn(elGiochiDi(squadra));
+      E.applicaMossa(G, mossa);
+      await vola(Array.from({ length: Math.min(quante, 5) }, () => ({
+        html: backHTML(), da: dalPosto, a: aiGiochi,
+      })), 260);
+    } else if (mossa.t === 's') {
+      say(`${G.names[p]} scarta…`);
+      render(); await sleep(200);
+      const daMano = rett(elPosto(p)), alMonte = rett(elScarti());
+      E.applicaMossa(G, mossa);
+      await vola([{ html: cardHTML(G.discard[0]), da: daMano, a: alMonte }], 280);
+    } else {
+      E.applicaMossa(G, mossa);
+    }
+    render();
+    if (!eraPozzetto && G.teams[squadra].pozzetto && G.hands[p].length > 1) {
+      say(`${G.names[p]} va a pozzetto`);
+      await animaPozzetto(p);
+    }
+  } finally {
+    busy = false;
+  }
+  if (G.turn === HUMAN) say('');
+  render();
+  if (G.handOver) finishHand();
 }
 
 /* ---------- Interazioni (un solo ascoltatore, delegato) ---------- */
@@ -594,6 +748,8 @@ function bindOnce() {
     saveNome(nomeScelto());
     if (b.dataset.h === 'riprendi') riprendiPartita();
     else if (b.dataset.h === 'nuova') newGameDialog();
+    else if (b.dataset.h === 'online') onlineDialog();
+    else if (b.dataset.h === 'rientra') rientraOnline();
     else if (b.dataset.h === 'regole') rulesDialog();
     else if (b.dataset.h === 'tema') cambiaTema();
   });
@@ -736,6 +892,7 @@ function after(r) {
   sel.clear(); dealing = false;
   if (r.pozzetto) say(r.volo ? 'Pozzetto preso al volo: continua il turno.' : 'Pozzetto preso.');
   else say('');
+  spedisci();
   save();
   return true;
 }
@@ -756,7 +913,7 @@ async function doDraw(src) {
 async function doMeld() {
   const scelte = [...sel];
   const prova = E.solveMeld(G.hands[HUMAN].filter(c => sel.has(c.id)));
-  if (prova) await volaVerso(scelte, elGiochiDi(HUMAN));
+  if (prova) await volaVerso(scelte, elGiochiDi(MIA()));
   const r = E.meldNew(G, HUMAN, scelte);
   if (!after(r)) { render(); return; }
   render();
@@ -798,6 +955,7 @@ async function doDiscard() {
   render();
   if (r.pozzetto) await animaPozzetto(HUMAN);
   if (G.handOver) { finishHand(); return; }
+  if (online) { render(); return; }   // tocca all'altra persona: si aspetta
   await runAI();
 }
 
@@ -883,7 +1041,7 @@ async function turnoComputer(p) {
   while (guard++ < 45) {
     const prima = G.teams[squadra].pozzetto;
     const dalPosto = rett(elPosto(p));
-    const aiGiochi = postoIn(elGiochiDi(1 - HUMAN === G.teamOf[p] ? 1 : G.teamOf[p]));
+    const aiGiochi = postoIn(elGiochiDi(G.teamOf[p]));
     const mossa = E.aiOneMeld(G, p);
     if (!mossa) break;
     say(mossa.t === 'add' ? `${G.names[p]} attacca una carta` : `${G.names[p]} cala ${mossa.n} carte`);
@@ -934,27 +1092,29 @@ function modal(title, sub, body, footer) {
 
 function finishHand() {
   const d = G.result.detail;
-  const row = (label, f) => `<tr><td>${label}</td><td>${f(d[0])}</td><td>${f(d[1])}</td></tr>`;
+  const row = (label, f) => `<tr><td>${label}</td><td>${f(d[MIA()])}</td><td>${f(d[LORO()])}</td></tr>`;
   const sign = v => (v > 0 ? '+' : '') + v;
   const burr = x => x.burrachi.length
     ? x.burrachi.map(b => b[0].toUpperCase() + b.slice(1)).join(', ') + ` (+${x.burracoPoints})`
     : '—';
-  const head = G.mode === '2v2' ? ['Noi', 'Loro'] : ['Tu', 'Computer'];
+  const io = MIA(), lui = LORO();
+  const head = G.mode === '2v2' ? ['Noi', 'Loro']
+    : ['Tu', online ? (G.names[1 - HUMAN] || 'Avversario') : 'Computer'];
   const body = `<table class="sheet">
     <tr><th>Voce</th><th>${head[0]}</th><th>${head[1]}</th></tr>
     ${row('Carte calate', x => x.melds)}
-    <tr><td>Burrachi</td><td>${burr(d[0])}</td><td>${burr(d[1])}</td></tr>
+    <tr><td>Burrachi</td><td>${burr(d[io])}</td><td>${burr(d[lui])}</td></tr>
     ${row('Bonus chiusura', x => x.chiusura ? '+100' : '—')}
     ${row('Pozzetto non preso', x => x.pozzetto ? '−100' : '—')}
     ${row('Carte in mano', x => x.hand ? '−' + x.hand : '—')}
-    <tr class="tot"><td>Totale mano</td><td>${sign(d[0].total)}</td><td>${sign(d[1].total)}</td></tr>
-    <tr><td>Punteggio partita</td><td>${G.matchScore[0]}</td><td>${G.matchScore[1]}</td></tr>
+    <tr class="tot"><td>Totale mano</td><td>${sign(d[io].total)}</td><td>${sign(d[lui].total)}</td></tr>
+    <tr><td>Punteggio partita</td><td>${G.matchScore[io]}</td><td>${G.matchScore[lui]}</td></tr>
   </table>`;
 
   if (G.finished) {
-    const won = G.winner === 0;
+    const won = G.winner === MIA();
     modal(won ? 'Partita vinta' : 'Partita persa',
-      `${G.matchScore[0]} a ${G.matchScore[1]} — traguardo ${G.target} punti.`,
+      `${G.matchScore[MIA()]} a ${G.matchScore[LORO()]} — traguardo ${G.target} punti.`,
       body, `<button class="btn primary" id="m-new">Nuova partita</button>`);
     $('m-new').onclick = () => { closeModal(); newGameDialog(); };
   } else {
@@ -969,8 +1129,99 @@ function finishHand() {
       E.nextHand(G); sel.clear(); say(''); dealing = true; handOrder = [];
       save();
       await distribuisci();
-      if (G.turn !== HUMAN) await runAI();
+      if (!online && G.turn !== HUMAN) await runAI();
     };
+  }
+}
+
+/* ---------- Finestre del gioco online ---------- */
+
+function onlineDialog() {
+  modal('Gioca online', 'In due, dallo stesso tavolo o da due città',
+    `<div class="opts">
+       <button class="btn primary" id="o-apri" style="text-align:left">
+         <b>Apri un tavolo</b><br><small style="opacity:.8">Ti do un codice di quattro lettere da dettare all'altro</small></button>
+       <div class="campo-nome" style="margin-top:14px">
+         <span>Oppure entra col codice che ti hanno dato</span>
+         <input id="o-codice" type="text" maxlength="4" placeholder="ABCD"
+                autocomplete="off" spellcheck="false" inputmode="latin"
+                style="text-transform:uppercase; letter-spacing:.4em; font-size:24px; text-align:center">
+       </div>
+       <button class="btn" id="o-entra" style="text-align:left">Entra al tavolo</button>
+       <p class="home-nota" id="o-avviso" style="margin-top:10px">Serve la connessione solo per giocare
+         online: contro il computer l'app funziona anche senza rete.</p>
+     </div>`,
+    `<button class="btn ghost" id="m-ok">Chiudi</button>`);
+  $('m-ok').onclick = closeModal;
+  const avviso = (t, err) => { $('o-avviso').textContent = t; $('o-avviso').style.color = err ? 'var(--bad, #d66)' : ''; };
+  $('o-apri').onclick = async () => {
+    $('o-apri').disabled = true; avviso('Apro il tavolo…');
+    try {
+      const p = await Rete.apri(nomeScelto() || 'Chi ha aperto');
+      attesaDialog(p);
+    } catch (e) {
+      $('o-apri').disabled = false;
+      avviso('Non riesco a raggiungere il servizio: controlla la connessione.', true);
+    }
+  };
+  $('o-entra').onclick = async () => {
+    const codice = ($('o-codice').value || '').trim().toUpperCase();
+    if (codice.length !== 4) return avviso('Il codice è di quattro lettere.', true);
+    $('o-entra').disabled = true; avviso('Entro al tavolo…');
+    try {
+      const p = await Rete.entra(codice, nomeScelto() || 'Chi è entrato');
+      const mosse = await Rete.tutte();
+      closeModal();
+      await avviaOnline(p, 1, mosse);
+    } catch (e) {
+      $('o-entra').disabled = false;
+      avviso('Nessun tavolo con questo codice. Fattelo ridettare.', true);
+    }
+  };
+}
+
+/** Chi apre il tavolo aspetta qui, guardando ogni tanto se è arrivato l'altro. */
+function attesaDialog(partita) {
+  modal('Tavolo aperto', 'Detta questo codice a chi deve entrare',
+    `<div class="attesa">
+       <div class="codice-grande">${partita.codice}</div>
+       <p class="home-nota" id="a-stato">Aspetto che si sieda…</p>
+     </div>`,
+    `<button class="btn ghost" id="m-ann">Annulla</button>`);
+  let vivo = true;
+  $('m-ann').onclick = () => { vivo = false; chiudiOnline(); closeModal(); };
+  (async () => {
+    while (vivo) {
+      await sleep(RITMO);
+      if (!vivo) return;
+      let p = null;
+      try { p = await Rete.guarda(); } catch (e) { continue; }
+      if (p && Array.isArray(p.nomi) && p.nomi[1]) {
+        vivo = false;
+        closeModal();
+        await avviaOnline(p, 0, []);
+        return;
+      }
+    }
+  })();
+}
+
+/** Rientro dopo aver chiuso l'app: si riprende tutto dalle mosse. */
+async function rientraOnline() {
+  const b = biglietto();
+  if (!b) return;
+  modal('Rientro al tavolo', 'Codice ' + b.codice, `<p class="home-nota">Recupero le mosse…</p>`, '');
+  try {
+    const p = await Rete.rientra(b.codice, b.posto);
+    const mosse = await Rete.tutte();
+    closeModal();
+    await avviaOnline(p, b.posto, mosse);
+  } catch (e) {
+    modal('Rientro non riuscito', 'Codice ' + b.codice,
+      `<p class="home-nota">Il tavolo non c'è più, oppure manca la connessione.
+       I tavoli lasciati stare per due giorni vengono chiusi da soli.</p>`,
+      `<button class="btn primary" id="m-ok">Va bene</button>`);
+    $('m-ok').onclick = () => { closeModal(); chiudiOnline(); mostraHome(); };
   }
 }
 
@@ -1095,15 +1346,16 @@ per leggerlo per intero.</p>
 
 /** Menu del telefono: le azioni che sul PC stanno nella testata. */
 function menuDialog() {
-  const siPuo = !busy && dealCount === null && E.annullabile(G, HUMAN);
+  const siPuo = !busy && !online && dealCount === null && E.annullabile(G, HUMAN);
   modal('Menu', 'Tavolo da Burraco',
     `<div class="opts">
        <button class="btn" id="m-annulla" style="text-align:left" ${siPuo ? '' : 'disabled'}>
-         Annulla l'ultima calata${siPuo ? '' : ' <small style="opacity:.6">(niente da annullare)</small>'}</button>
+         Annulla l'ultima calata${siPuo ? '' : ` <small style="opacity:.6">(${online ? 'non online' : 'niente da annullare'})</small>`}</button>
        <button class="btn" id="m-tema" style="text-align:left">Cambia tema chiaro / scuro</button>
        <button class="btn" id="m-reg" style="text-align:left">Regolamento ufficiale</button>
        <button class="btn" id="m-nuova" style="text-align:left">Nuova partita</button>
        <button class="btn primary" id="m-home" style="text-align:left">Torna alla schermata iniziale</button>
+       ${online ? `<button class="btn" id="m-esci" style="text-align:left">Abbandona la partita online</button>` : ''}
      </div>`,
     `<button class="btn ghost" id="m-ok">Chiudi</button>`);
   $('m-ok').onclick = closeModal;
@@ -1112,6 +1364,7 @@ function menuDialog() {
   $('m-reg').onclick = () => { closeModal(); rulesDialog(); };
   $('m-nuova').onclick = () => { closeModal(); newGameDialog(); };
   $('m-home').onclick = () => { closeModal(); save(); mostraHome(); };
+  if ($('m-esci')) $('m-esci').onclick = () => { closeModal(); chiudiOnline(); mostraHome(); };
 }
 
 function punteggioDialog() {
@@ -1194,6 +1447,9 @@ window.__burraco = {
   // non restituisce la promessa: i collaudi devono poter vedere la distribuzione
   avvia: (mode, target) => { avviaPartita(mode || '1v1', target || 2005); },
   riprendi: () => riprendiPartita(),
+  rete: Rete,
+  online: () => online,
+  posto: () => HUMAN,
   nuovaPartita: (mode, target) => {
     nascondiHome();
     G = E.newGame(mode, { target: target || 2005 });

@@ -24,6 +24,16 @@
 
 <div id="overlay"></div>
 
+<script>
+// Il servizio del gioco online si può puntare altrove con ?rete=… : serve ai
+// collaudi, che girano su una macchina senza internet e usano una copia locale.
+(function () {
+  try {
+    const q = new URLSearchParams(location.search);
+    if (q.get('rete')) window.__RETE__ = { url: q.get('rete'), chiave: 'prova', ritmo: Number(q.get('ritmo')) || 400 };
+  } catch (e) { }
+})();
+</script>
 <script type="module" src="./src/ui.js"></script>
 <script>
 // Registrazione del service worker: l'app resta giocabile anche offline.

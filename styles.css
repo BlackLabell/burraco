@@ -564,6 +564,17 @@ details.rules b{color:var(--ink)}
 .campo-nome input:focus{outline:2px solid var(--accent-2); outline-offset:1px}
 .home-nota{margin:0; font-size:11.5px; line-height:1.45; color:var(--ink-faint)}
 
+/* ── Gioco online ──────────────────────────────────────────────
+   Il codice del tavolo si detta al telefono: va letto a colpo d'occhio
+   e da lontano, quindi grande, spaziato e con le cifre allineate. */
+.attesa{display:flex; flex-direction:column; align-items:center; gap:14px; padding:10px 0}
+.codice-grande{
+  font-family:"Bodoni Moda",Didot,Georgia,serif; font-weight:700;
+  font-size:clamp(44px,16vw,64px); letter-spacing:.18em; line-height:1;
+  color:var(--accent-2); padding-left:.18em;
+}
+.attesa .home-nota{text-align:center}
+
 /* ── Finestre modali ───────────────────────────────────────── */
 .veil{
   position:fixed; inset:0; background:rgba(10,16,12,.62); backdrop-filter:blur(2px);

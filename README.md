@@ -2,10 +2,11 @@
 
 ### ▶ [Apri l'app — blacklabell.github.io/burraco](https://blacklabell.github.io/burraco/)
 
-Burraco italiano contro il computer, uno contro uno o a coppie, con le regole ufficiali.
-Gira nel browser, si installa sul telefono e funziona anche senza connessione.
+Burraco italiano con le regole ufficiali: **contro il computer** (uno contro uno o a coppie)
+oppure **online in due**, con un codice di quattro lettere da dettare all'altro.
+Gira nel browser, si installa sul telefono e contro il computer funziona anche senza connessione.
 
-**Versione pubblicata:** `burraco-v21` — 26 agosto 2026
+**Versione pubblicata:** `burraco-v22` — 26 agosto 2026
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server, nessun account
 a pagamento, nessun dominio da comprare.
 
@@ -22,6 +23,34 @@ a pagamento, nessun dominio da comprare.
 ## Novità
 
 Le voci più recenti stanno in alto. Ogni riga corrisponde a una versione di `sw.js`.
+
+### `burraco-v22` — 26 agosto 2026
+
+**Si gioca online, in due.** Dalla schermata iniziale: *Gioca online* → **Apri un tavolo** e
+ti viene dato un codice di quattro lettere; l'altro sceglie *Gioca online*, scrive il codice e
+si siede. Niente iscrizione, niente password, niente ricerca di avversari: si gioca con chi
+conosci, come quando si dice "ci vediamo alle nove".
+
+- **Non si spedisce il tavolo, si spediscono le mosse.** Le due app ricevono lo stesso seme del
+  mazzo e distribuiscono le stesse identiche carte; poi ognuna manda le proprie mosse e applica
+  quelle dell'altra con lo stesso motore. Una mossa sta in poche decine di byte, quindi il
+  gioco regge anche con una tacca di rete.
+- **Le mosse dell'altro si vedono arrivare**, con gli stessi voli del computer: pesca, cala,
+  attacca, scarta, va a pozzetto.
+- **Si rientra.** Se chiudi l'app o cade la linea, in prima pagina compare *Rientra al tavolo
+  XXXX*: il tavolo si ricostruisce da capo rileggendo le mosse. Nessuno perde la partita.
+- **Il nome che hai scritto in prima pagina** è quello che vede l'altro.
+- Il tavolo si guarda ogni secondo scarso: il burraco è a turni, non serve di più.
+- I tavoli lasciati stare per due giorni si chiudono da soli.
+- **Costo: zero.** Cinque funzioni su Supabase, piano gratuito. Niente librerie da scaricare
+  nell'app: solo `fetch`.
+- **Onestà:** il motore gira sui due telefoni, non su un server. Fra amici va benissimo — ogni
+  telefono rifiuta le mosse non regolari — ma chi apre la console del browser può vedere le
+  carte dell'altro. Per impedirlo davvero servirebbe spostare il motore sul server: si può
+  fare più avanti, se mai servirà.
+- Provato con **due telefoni finti che giocano davvero** una partita a clic (`onlinetest.js`):
+  stesso mazzo, otto turni a testa, i due tavoli restano identici carta per carta, e il rientro
+  ricostruisce esattamente lo stesso tavolo.
 
 ### `burraco-v21` — 26 agosto 2026
 - **Schermata iniziale.** L'app non parte più buttandoti al tavolo: si apre su una pagina con
@@ -229,13 +258,34 @@ Correzioni trovate col collaudo automatico su sei misure di schermo, dal telefon
 
 ---
 
+## Com'è fatto il gioco online
+
+Non c'è niente da configurare: l'app è già collegata. Per curiosità, il giro è questo.
+
+| Pezzo | Dove |
+|---|---|
+| Servizio | Supabase, progetto `burraco`, piano gratuito, server in Germania |
+| Tabelle | `partite` (codice, seme del mazzo, nomi) e `mosse` (codice, numero, posto, mossa) |
+| Come si parla | cinque funzioni SQL: `apri_tavolo`, `siediti`, `guarda_tavolo`, `manda_mossa`, `leggi_mosse` |
+| Nell'app | `src/rete.js`, una settantina di righe, solo `fetch` |
+
+Le tabelle non si toccano mai direttamente: senza il codice del tavolo non si ottiene niente,
+nemmeno l'elenco dei tavoli aperti. Due mosse non possono prendere lo stesso numero — ci pensa
+la chiave del database — quindi i due tavoli non possono sfasarsi. Ogni notte i tavoli fermi da
+due giorni vengono cancellati, e due volte a settimana il workflow `sveglia.yml` bussa al
+servizio: il piano gratuito mette in pausa i progetti fermi da una settimana, e senza quella
+bussata il gioco online smetterebbe di funzionare fino a riaccenderlo a mano.
+
+Per i collaudi c'è `tools/finto-supabase.js`, che parla la stessa lingua ma tiene tutto in
+memoria: così la partita fra due telefoni si prova anche su una macchina senza internet.
+
+---
+
 ## Da fare
 
-- **Gioco online**, a costo zero. La strada è tracciata: il motore è già l'unico arbitro e le
-  mosse sono già scritte in un registro che si spedisce così com'è. Mancano tre pezzi:
-  una stanza con un codice di quattro lettere per invitare l'altro giocatore, il canale che
-  porta le mosse da un telefono all'altro (Supabase Realtime, piano gratuito), e la partita
-  ripresa al volo se uno chiude l'app. Il computer resta come avversario di riserva.
+- **Arbitro sul server**, se un giorno servirà: oggi il motore gira sui telefoni, quindi fra
+  amici è onesto ma non a prova di furbo.
+- **Online anche a coppie** (quattro posti, con chi manca coperto dal computer).
 - **Schermo orizzontale**: girando il telefono le carte dei giochi scendono a 17 px; serve una
   pianta a parte, con i giochi affiancati.
 - **Una versione a parte per il computer**: oggi il PC mostra la stessa pianta del telefono in
@@ -300,15 +350,18 @@ Non c'è niente da installare: `npm install` non serve, il progetto non ha dipen
 ## Com'è fatto
 
 ```
-index.html               pagina e struttura del tavolo
-styles.css               stile, tema chiaro e scuro, blocchi telefono e PC
-src/engine.js            motore: regole, combinazioni, punteggi, intelligenza del computer
-src/ui.js                interfaccia: disegno del tavolo, clic, finestre, animazioni
+index.html               pagina, schermata iniziale e tavolo
+styles.css               stile, tema chiaro e scuro (una pianta sola, tarata sul telefono)
+src/engine.js            motore: regole, combinazioni, punteggi, computer, registro delle mosse
+src/ui.js                interfaccia: disegno del tavolo, clic, finestre, animazioni, online
+src/rete.js              gioco online: apre il tavolo, manda e legge le mosse
 sw.js                    service worker: fa funzionare l'app senza connessione
 manifest.webmanifest     dati per l'installazione sul telefono
 icons/                   icone dell'app
-tests/engine.test.js     62 test, girano con Node senza librerie
+tests/engine.test.js     65 test, girano con Node senza librerie
 tools/serve.js           server locale per lo sviluppo
+tools/finto-supabase.js  copia locale del servizio online, per i collaudi
+.github/workflows/       test a ogni caricamento, e la sveglia del servizio online
 ```
 
 Il motore non sa niente dell'interfaccia: si può usare da solo, per esempio per simulare
