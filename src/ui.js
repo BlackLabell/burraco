@@ -38,6 +38,15 @@ function load() {
 function loadTheme() {
   try { return localStorage.getItem('burraco.tema'); } catch (e) { return null; }
 }
+/* Il nome resta sul telefono e basta: niente registrazione, niente password.
+   Serve solo a farsi chiamare per nome al tavolo — e domani, quando si gioca
+   online, a farsi riconoscere dagli altri. */
+function loadNome() {
+  try { return localStorage.getItem('burraco.nome') || ''; } catch (e) { return ''; }
+}
+function saveNome(n) {
+  try { localStorage.setItem('burraco.nome', n); } catch (e) { }
+}
 
 /* ---------- Carte ─────────────────────────────────────────────
    Taglio classico: indice (valore sopra, seme sotto) nell'angolo in
@@ -105,19 +114,26 @@ function meldHTML(m, clickable) {
   /* Un gioco resta sempre in una colonna sola: un burraco spezzato in due non
      si riconosce più. Quando è lungo si comprime, come quando al tavolo stringi
      le carte: si lasciano scoperte solo quelle che servono davvero a leggerlo —
-     la prima, l'ultima, e la matta con la carta che le sta sopra, così si vede
-     dov'è. Le altre restano una striscia sottile: in una scala pulita i valori
-     in mezzo si sanno già, vanno dalla prima all'ultima. */
+     la prima, l'ultima, la matta e le due carte che la toccano — sopra e sotto —
+     così si vede esattamente dove sta e che posto occupa. Le altre restano una
+     striscia sottile: in una scala pulita i valori in mezzo si sanno già,
+     vanno dalla prima all'ultima. */
   const scoperta = new Array(n).fill(n <= 6);
-  scoperta[0] = true;
+  scoperta[0] = true;          // la prima (l'ultima è sempre scoperta: non ha nulla sotto)
   slots.forEach((s, i) => {
     if (!s.wild) return;
     scoperta[i] = true;
     if (i > 0) scoperta[i - 1] = true;
+    if (i + 1 < n) scoperta[i + 1] = true;
   });
+  /* La carta compressa non mostra il suo indice: della striscia sottile si
+     vedrebbe solo la metà di sopra di una lettera, e una Q tagliata sembra
+     una O. Meglio un filo pulito: le carte si contano lo stesso dai bordi. */
   const carte = slots.map((s, i) => cardHTML(
     s.card,
-    (s.wild ? 'wild ' : '') + (i > 0 && !scoperta[i - 1] ? 'stretta' : '')
+    (s.wild ? 'wild ' : '') +
+    (i > 0 && !scoperta[i - 1] ? 'stretta ' : '') +
+    (i < n - 1 && !scoperta[i] ? 'muta' : '')
   ));
   const cards = `<div class="col">${carte.join('')}</div>`;
   const b = E.burracoType(m);
@@ -355,6 +371,8 @@ function render() {
      vostra, e in mezzo tallone e scarti — ben staccati, perché è lì che si tocca
      a ogni turno e sbagliare mazzo costa il turno. */
   const mazzi = `
+    <button class="btn ghost mini colonna" data-a="menu" title="Menu" aria-label="Menu">☰</button>
+    <button class="btn ghost mini colonna" data-a="punti" title="Punteggio e cronaca">Punti</button>
     <div class="pile pozzetto ${G.teams[1].pozzetto ? 'dim' : ''}">
       <div class="pilewrap">${G.pozzetti[1].length ? backHTML() : slotHTML()}</div>
       <div class="cap">Loro<b>${G.teams[1].pozzetto ? 'preso' : G.pozzetti[1].length}</b></div>
@@ -419,9 +437,7 @@ function render() {
     <section class="zone mano">
       <div class="seat-label mano-h"><b>${nMano} ${nMano === 1 ? 'carta' : 'carte'}</b>
         ${sel.size ? `<span class="chip on">${sel.size} scelte</span>` : ''}
-        <button class="btn ghost mini" data-a="sort" title="Cambia l'ordine della mano">Per ${sortMode === 'rank' ? 'seme' : 'valore'}</button>
-        <button class="btn ghost mini" data-a="punti" title="Punteggio e cronaca">Punti</button>
-        <button class="btn ghost mini" data-a="menu" title="Menu" aria-label="Menu">☰</button></div>
+        <button class="btn ghost mini" data-a="sort" title="Cambia l'ordine della mano">Per ${sortMode === 'rank' ? 'seme' : 'valore'}</button></div>
       <div class="hand ${dealing ? 'deal' : ''}" id="hand">${hand}</div>
     </section>`;
 
@@ -478,6 +494,93 @@ function logLine(e) {
   }
   return { h: '' };
 }
+/* ---------- Schermata iniziale ─────────────────────────────
+   Si apre qui: si riprende la partita lasciata a metà, se ne comincia
+   una nuova, o si va a leggere le regole. Nessuna registrazione: il nome
+   resta sul telefono.                                              */
+
+function inCorso() {
+  const d = load();
+  if (!d || d.finished) return null;
+  return d;
+}
+
+function descriviPartita(g) {
+  const noi = g.mode === '2v2' ? 'Voi' : 'Tu';
+  const loro = g.mode === '2v2' ? 'Loro' : 'Computer';
+  return `${g.mode === '2v2' ? 'A coppie' : 'Uno contro uno'} · mano ${g.handNo} · ` +
+    `${noi} ${g.matchScore[0]} — ${loro} ${g.matchScore[1]}`;
+}
+
+function mostraHome() {
+  const ripresa = inCorso();
+  const nome = loadNome();
+  $('layout').hidden = true;
+  $('home').hidden = false;
+  $('home').innerHTML = `
+    <div class="home-in">
+      <div class="home-testa">
+        <h1>Tavolo da Burraco</h1>
+        <p>Regole ufficiali italiane · contro il computer</p>
+      </div>
+      <div class="home-scelte">
+        ${ripresa ? `<button class="btn primary grande" data-h="riprendi">
+             <b>Riprendi la partita</b><small>${descriviPartita(ripresa)}</small></button>` : ''}
+        <button class="btn ${ripresa ? '' : 'primary'} grande" data-h="nuova">
+          <b>Nuova partita</b><small>Uno contro uno o a coppie, a 2005 o 1005 punti</small></button>
+        <button class="btn grande" data-h="regole">
+          <b>Regolamento</b><small>Il codice di gara, articolo per articolo, con le fonti</small></button>
+      </div>
+      <div class="home-piede">
+        <label class="campo-nome">
+          <span>Come ti chiami</span>
+          <input id="home-nome" type="text" maxlength="14" placeholder="Tu"
+                 value="${nome.replace(/"/g, '&quot;')}" autocomplete="off" spellcheck="false">
+        </label>
+        <button class="btn ghost mini" data-h="tema">Tema chiaro / scuro</button>
+      </div>
+      <p class="home-nota">Niente registrazione: il nome resta sul telefono.
+        La partita si salva da sola e l'app funziona anche senza connessione.</p>
+    </div>`;
+}
+
+function nascondiHome() {
+  $('home').hidden = true;
+  $('layout').hidden = false;
+}
+
+/** Il nome scritto nella schermata iniziale, se c'è. */
+function nomeScelto() {
+  const el = $('home-nome');
+  const n = (el ? el.value : loadNome()).trim();
+  return n || '';
+}
+
+function applicaNome() {
+  const n = nomeScelto();
+  saveNome(n);
+  if (G && G.names) G.names[HUMAN] = n || 'Tu';
+}
+
+async function avviaPartita(mode, target) {
+  G = E.newGame(mode, { target });
+  applicaNome();
+  sel.clear(); say(''); dealing = true; handOrder = [];
+  nascondiHome();
+  save();
+  await distribuisci();
+  if (G.turn !== HUMAN) await runAI();
+}
+
+function riprendiPartita() {
+  G = load();
+  if (!G) return mostraHome();
+  applicaNome();
+  nascondiHome();
+  render();
+  if (!G.handOver && G.turn !== HUMAN) runAI();
+}
+
 /* ---------- Interazioni (un solo ascoltatore, delegato) ---------- */
 function scegli(id) {
   if (sel.has(id)) sel.delete(id); else sel.add(id);
@@ -485,6 +588,16 @@ function scegli(id) {
 }
 
 function bindOnce() {
+  $('home').addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-h]');
+    if (!b) return;
+    saveNome(nomeScelto());
+    if (b.dataset.h === 'riprendi') riprendiPartita();
+    else if (b.dataset.h === 'nuova') newGameDialog();
+    else if (b.dataset.h === 'regole') rulesDialog();
+    else if (b.dataset.h === 'tema') cambiaTema();
+  });
+
   const board = $('board');
   let attesa = null, ispezionato = false;
 
@@ -650,6 +763,20 @@ async function doMeld() {
   if (r.pozzetto) await animaPozzetto(HUMAN);
   if (G.handOver) { finishHand(); return; }
   render();
+}
+
+/* Annulla l'ultima calata: la mano si rigioca dall'inizio con una mossa in
+   meno. Non c'è nessuno stato da tenere da parte — bastano il seme del mazzo
+   e il registro delle mosse. Vale solo dentro il proprio turno. */
+function annullaCalata() {
+  if (busy || dealCount !== null) return;
+  const indietro = E.annulla(G, HUMAN);
+  if (!indietro) { say('Non c\'è niente da annullare.', true); render(); return; }
+  indietro.names = [...G.names];
+  G = indietro;
+  sel.clear(); dealing = false;
+  say('Calata annullata: le carte sono tornate in mano.');
+  save(); render();
 }
 
 async function doAttack(meldId) {
@@ -865,11 +992,7 @@ function newGameDialog() {
     const mode = document.querySelector('input[name=mode]:checked').value;
     const goal = +document.querySelector('input[name=goal]:checked').value;
     closeModal();
-    G = E.newGame(mode, { target: goal });
-    sel.clear(); say(''); dealing = true; handOrder = [];
-    save();
-    await distribuisci();
-    if (G.turn !== HUMAN) await runAI();
+    await avviaPartita(mode, goal);
   };
 }
 
@@ -972,17 +1095,23 @@ per leggerlo per intero.</p>
 
 /** Menu del telefono: le azioni che sul PC stanno nella testata. */
 function menuDialog() {
+  const siPuo = !busy && dealCount === null && E.annullabile(G, HUMAN);
   modal('Menu', 'Tavolo da Burraco',
     `<div class="opts">
+       <button class="btn" id="m-annulla" style="text-align:left" ${siPuo ? '' : 'disabled'}>
+         Annulla l'ultima calata${siPuo ? '' : ' <small style="opacity:.6">(niente da annullare)</small>'}</button>
        <button class="btn" id="m-tema" style="text-align:left">Cambia tema chiaro / scuro</button>
        <button class="btn" id="m-reg" style="text-align:left">Regolamento ufficiale</button>
-       <button class="btn primary" id="m-nuova" style="text-align:left">Nuova partita</button>
+       <button class="btn" id="m-nuova" style="text-align:left">Nuova partita</button>
+       <button class="btn primary" id="m-home" style="text-align:left">Torna alla schermata iniziale</button>
      </div>`,
     `<button class="btn ghost" id="m-ok">Chiudi</button>`);
   $('m-ok').onclick = closeModal;
+  $('m-annulla').onclick = () => { closeModal(); annullaCalata(); };
   $('m-tema').onclick = () => { cambiaTema(); closeModal(); };
   $('m-reg').onclick = () => { closeModal(); rulesDialog(); };
   $('m-nuova').onclick = () => { closeModal(); newGameDialog(); };
+  $('m-home').onclick = () => { closeModal(); save(); mostraHome(); };
 }
 
 function punteggioDialog() {
@@ -1046,16 +1175,10 @@ function cambiaTema() {
 const savedTheme = loadTheme();
 if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
 
-G = load();
-if (G) {
-  // partita ripresa: niente distribuzione, si riparte da dov'era
-  render();
-  if (!G.handOver && G.turn !== HUMAN) runAI();
-} else {
-  G = E.newGame('1v1', { target: 2005 });
-  dealing = true;
-  distribuisci().then(() => { if (!G.handOver && G.turn !== HUMAN) runAI(); });
-}
+/* Si apre sulla schermata iniziale: da lì si riprende o si comincia.
+   G resta pronto in memoria così i test e il salvataggio funzionano subito. */
+G = load() || E.newGame('1v1', { target: 2005 });
+mostraHome();
 
 /* Aggancio per i test automatici (non serve al gioco). */
 window.__burraco = {
@@ -1066,7 +1189,13 @@ window.__burraco = {
   turnoIA: () => E.aiTurn(G, G.turn),
   sbloccaIA: () => { busy = false; },
   fineMano: () => finishHand(),
+  home: () => mostraHome(),
+  // i collaudi entrano dritti al tavolo, senza passare dalla schermata iniziale
+  // non restituisce la promessa: i collaudi devono poter vedere la distribuzione
+  avvia: (mode, target) => { avviaPartita(mode || '1v1', target || 2005); },
+  riprendi: () => riprendiPartita(),
   nuovaPartita: (mode, target) => {
+    nascondiHome();
     G = E.newGame(mode, { target: target || 2005 });
     sel.clear(); msg = ''; dealing = false; handOrder = [];
     busy = false; dealCount = null; render();

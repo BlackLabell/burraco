@@ -584,3 +584,64 @@ t('statistiche di 40 mani: chiusure e burrachi plausibili', () => {
   assert(closes >= 30, 'troppe poche chiusure regolari: ' + closes);
   assert(burr >= 30, 'troppi pochi burrachi: ' + burr);
 });
+
+/* ── Registro delle mosse: è la base del gioco online e dell'annulla ── */
+
+/** Impronta dello stato: se due tavoli hanno la stessa, sono lo stesso tavolo. */
+function impronta(g) {
+  return JSON.stringify({
+    turn: g.turn, phase: g.phase, handNo: g.handNo, handOver: g.handOver,
+    mani: g.hands.map(h => h.map(c => c.id)),
+    giochi: g.teams.map(t => t.melds.map(m => ({
+      id: m.id, type: m.type, slots: m.slots.map(s => [s.card.id, !!s.wild]),
+    }))),
+    pozzetti: [g.teams[0].pozzetto, g.teams[1].pozzetto],
+    stock: g.stock.map(c => c.id), scarti: g.discard.map(c => c.id),
+    punti: g.matchScore,
+  });
+}
+
+t('una mano si rigioca identica dal seme e dal registro', () => {
+  for (const seme of [11, 4242, 90210]) {
+    const g = E.newGame('1v1', { seed: seme });
+    for (let i = 0; i < 400 && !g.handOver; i++) E.aiTurn(g, g.turn);
+    assert(g.mosse.length > 10, 'registro troppo corto: ' + g.mosse.length);
+    const copia = E.rigiocaMano(g, g.mosse);
+    assert(copia, 'la mano non si è potuta rigiocare (seme ' + seme + ')');
+    eq(impronta(copia), impronta(g), 'la mano rigiocata è diversa (seme ' + seme + '):');
+  }
+});
+
+t('il registro sopravvive a un salvataggio in JSON', () => {
+  const g = E.newGame('2v2', { seed: 31337 });
+  for (let i = 0; i < 60 && !g.handOver; i++) E.aiTurn(g, g.turn);
+  const spedito = JSON.parse(JSON.stringify(g.mosse));   // come passasse dalla rete
+  const copia = E.rigiocaMano(g, spedito);
+  assert(copia, 'registro non replicabile dopo il giro in JSON');
+  eq(impronta(copia), impronta(g), 'stato diverso dopo il giro in JSON:');
+});
+
+t('annulla: torna indietro di una calata, non oltre', () => {
+  // si cerca una mano in cui il giocatore 0 ha appena calato
+  let trovata = false;
+  for (let seme = 1; seme < 60 && !trovata; seme++) {
+    const g = E.newGame('1v1', { seed: seme });
+    for (let i = 0; i < 300 && !g.handOver; i++) {
+      if (g.turn !== 0) { E.aiTurn(g, 1); continue; }
+      if (g.phase === 'draw') { E.aiDraw(g, 0); continue; }
+      const prima = impronta(g);
+      if (!E.aiOneMeld(g, 0)) { E.aiDiscard(g, 0); continue; }
+      // ha calato: adesso l'annulla deve riportare esattamente a "prima"
+      assert(E.annullabile(g, 0), 'la calata doveva essere annullabile');
+      const indietro = E.annulla(g, 0);
+      assert(indietro, 'annulla ha restituito niente');
+      eq(impronta(indietro), prima, 'annulla non ha rimesso le cose com\'erano:');
+      // dopo lo scarto non si annulla più
+      E.aiDiscard(g, 0);
+      eq(E.annullabile(g, 0), false, 'dopo lo scarto non si deve poter annullare');
+      trovata = true;
+      break;
+    }
+  }
+  assert(trovata, 'nessuna calata trovata in 60 semi');
+});

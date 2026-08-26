@@ -328,6 +328,8 @@ function startHand(g) {
   g.handOver = false;
   g.result = null;
   g.tookPileThisTurn = false;
+  g.mosse = [];                 // registro della mano: vedi "REGISTRO DELLE MOSSE"
+  g.puntiInizioMano = [...g.matchScore];   // per rigiocare la mano senza contare due volte
   g.log.push({ t: 'hand', n: g.handNo });
   return g;
 }
@@ -351,12 +353,14 @@ function draw(g, p, source) {
     g.hands[p].push(...g.discard.splice(0, g.discard.length));
     g.hands[p].sort(sortCards);
     g.tookPileThisTurn = true;
+    g.mosse.push({ t: 'p', p, s: 'pile' });
     g.log.push({ t: 'draw', p, src: 'pile' });
   } else {
     if (g.stock.length === 0) return err('Il tallone è esaurito: devi prendere gli scarti.');
     g.hands[p].push(g.stock.shift());
     g.hands[p].sort(sortCards);
     g.tookPileThisTurn = false;
+    g.mosse.push({ t: 'p', p, s: 'stock' });
     g.log.push({ t: 'draw', p, src: 'stock' });
   }
   g.phase = 'meld';
@@ -467,6 +471,7 @@ function meldNew(g, p, ids) {
   sol.id = ++g.meldSeq;
   sol.team = g.teamOf[p];
   teamMelds(g, p).push(sol);
+  g.mosse.push({ t: 'c', p, ids: cards.map(c => c.id) });
   g.log.push({ t: 'meld', p, n: cards.length });
   const r = afterHandEmpty(g, p, false);
   return ok(r);
@@ -494,6 +499,7 @@ function addToMeld(g, p, meldId, ids) {
   g.hands[p] = g.hands[p].filter(c => !cards.includes(c));
   sol.id = m.id; sol.team = m.team;
   melds[melds.indexOf(m)] = sol;
+  g.mosse.push({ t: 'a', p, m: sol.id, ids: cards.map(c => c.id) });
   g.log.push({ t: 'add', p, n: cards.length });
   const r = afterHandEmpty(g, p, false);
   return ok(r);
@@ -513,6 +519,7 @@ function discard(g, p, id) {
   }
   g.hands[p] = g.hands[p].filter(x => x !== c);
   g.discard.unshift(c);
+  g.mosse.push({ t: 's', p, id: c.id });
   g.log.push({ t: 'discard', p, c: cardLabel(c) });
   const r = afterHandEmpty(g, p, true);
   if (r.closed) return ok(r);
@@ -575,6 +582,68 @@ function nextHand(g) {
   if (g.finished) return g;
   g.dealer = (g.dealer + 1) % g.nPlayers;
   return startHand(g);
+}
+
+/* ============================================================
+   REGISTRO DELLE MOSSE
+   Ogni azione riuscita finisce in g.mosse in forma minima. Con il
+   seme del mazzo, il numero della mano e questo registro la mano si
+   ricostruisce carta per carta: nessuno stato da spedire.
+   Serve a due cose:
+     · gioco online — si spedisce la mossa (poche decine di byte),
+       non il tavolo, e ogni giocatore la applica con questo stesso
+       motore, che resta l'unico arbitro;
+     · annulla — si rigioca la mano fino a un istante prima.
+   Il registro riparte a ogni mano: una mano sola basta a tutte e due.
+   ============================================================ */
+
+/** Traduce una mossa del registro in una chiamata al motore. */
+function applicaMossa(g, m) {
+  if (m.t === 'p') return draw(g, m.p, m.s);
+  if (m.t === 'c') return meldNew(g, m.p, m.ids);
+  if (m.t === 'a') return addToMeld(g, m.p, m.m, m.ids);
+  if (m.t === 's') return discard(g, m.p, m.id);
+  return err('Mossa sconosciuta: ' + m.t);
+}
+
+/** La stessa mano appena distribuita: stesso seme, stesso mazziere. */
+function inizioMano(g) {
+  const i = g.log.map(x => x.t).lastIndexOf('hand');
+  const b = {
+    mode: g.mode, nPlayers: g.nPlayers, target: g.target, seed: g.seed,
+    names: [...g.names], teamOf: [...g.teamOf],
+    matchScore: [...(g.puntiInizioMano || g.matchScore)], dealer: g.dealer, handNo: g.handNo - 1,
+    finished: false, winner: null,
+    log: i >= 0 ? g.log.slice(0, i) : [],
+  };
+  startHand(b);
+  return b;
+}
+
+/** Rigioca la mano dall'inizio con le mosse date. Non tocca g. */
+function rigiocaMano(g, mosse) {
+  const b = inizioMano(g);
+  for (const m of mosse) {
+    const r = applicaMossa(b, m);
+    if (!r.ok) return null;   // registro incoerente: meglio non toccare niente
+  }
+  return b;
+}
+
+/**
+ * Annulla l'ultima calata o l'ultimo attacco del giocatore, dentro il suo
+ * turno. La pescata non si annulla (rivelerebbe il tallone) e dopo lo scarto
+ * il turno è chiuso: lì non c'è più niente da annullare.
+ */
+function annullabile(g, p) {
+  if (g.handOver || g.turn !== p || g.phase !== 'meld') return false;
+  const u = (g.mosse || []).length - 1;
+  return u >= 0 && g.mosse[u].p === p && (g.mosse[u].t === 'c' || g.mosse[u].t === 'a');
+}
+
+function annulla(g, p) {
+  if (!annullabile(g, p)) return null;
+  return rigiocaMano(g, g.mosse.slice(0, -1));
 }
 
 function ok(x) { return { ok: true, ...(x || {}) }; }
@@ -750,5 +819,6 @@ const ENGINE = {
   newGame, startHand, nextHand, endHand, draw, meldNew, addToMeld, discard, nextTurn,
   teamMelds, hasBurraco, canEmptyHand, canMeldToZero, minimoDaTenere, findNewMelds, sortCards,
   aiTurn, aiDraw, aiOneMeld, aiDiscard,
+  applicaMossa, inizioMano, rigiocaMano, annullabile, annulla,
 };
 export default ENGINE;

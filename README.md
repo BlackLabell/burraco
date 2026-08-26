@@ -5,7 +5,7 @@
 Burraco italiano contro il computer, uno contro uno o a coppie, con le regole ufficiali.
 Gira nel browser, si installa sul telefono e funziona anche senza connessione.
 
-**Versione pubblicata:** `burraco-v20` — 26 agosto 2026
+**Versione pubblicata:** `burraco-v21` — 26 agosto 2026
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server, nessun account
 a pagamento, nessun dominio da comprare.
 
@@ -22,6 +22,35 @@ a pagamento, nessun dominio da comprare.
 ## Novità
 
 Le voci più recenti stanno in alto. Ogni riga corrisponde a una versione di `sw.js`.
+
+### `burraco-v21` — 26 agosto 2026
+- **Schermata iniziale.** L'app non parte più buttandoti al tavolo: si apre su una pagina con
+  **Riprendi la partita** (con mano e punteggio scritti sopra, così sai cosa stai riprendendo),
+  **Nuova partita** e **Regolamento**. Dal menu ☰ si torna qui in qualsiasi momento.
+- **Niente registrazione.** Nessun login, nessuna password, nessun account: c'è solo un campo
+  per il nome, che resta sul telefono e compare al posto di "Tu" al tavolo. Se lo lasci vuoto
+  si gioca come sempre. Serve anche da preparazione al gioco online.
+- **La colonna dei mazzi in ordine:** ☰ · Punti · pozzetto loro · tallone · scarti · pozzetto tuo.
+  Punti e ☰ non stanno più sopra la mano: quella riga se n'è andata e lo spazio è del tavolo.
+- **Tallone e scarti più grandi del 10%**, che è dove si tocca a ogni turno.
+- **Il monte scarti scende in verticale**, non più a ventaglio verso sinistra: nella fascia
+  stretta il ventaglio sbordava sul tavolo. L'ultima scartata resta in fondo, intera.
+- **Scale compresse più leggibili.** Di un gioco lungo restano scoperte la prima, l'ultima,
+  **la matta e le due carte che la toccano** — sopra e sotto — così si vede esattamente dove
+  sta e che posto occupa. Le altre sono un filo pulito: prima si vedeva mezza lettera e una
+  Q tagliata sembrava una O.
+- **La J e la Q non si tagliano più** nemmeno sulle carte scoperte: l'indice sta tutto dentro
+  la striscia visibile.
+- **Annulla l'ultima calata** (menu ☰). Se cali il gioco sbagliato, le carte tornano in mano.
+  Vale dentro il tuo turno: la pescata non si annulla (rivelerebbe il tallone) e dopo lo scarto
+  il turno è chiuso.
+- **Sotto il cofano: registro delle mosse.** Ogni azione viene annotata in forma minima
+  (chi, cosa, quali carte). Con il seme del mazzo, quel registro basta a ricostruire la mano
+  carta per carta: è così che funziona l'annulla, senza tenere da parte nessuna copia del
+  tavolo. È anche il pezzo che serviva **per il gioco online**: fra due telefoni si spediscono
+  le mosse — poche decine di byte — e non il tavolo intero. Verificato da tre collaudi nuovi:
+  una mano rigiocata dal registro torna identica carta per carta, anche dopo essere passata
+  per un JSON come farebbe in rete.
 
 ### `burraco-v20` — 26 agosto 2026
 - **Le scale erano al contrario.** Si leggevano dal basso: il tre in cima e l'asso in fondo.
@@ -202,14 +231,16 @@ Correzioni trovate col collaudo automatico su sei misure di schermo, dal telefon
 
 ## Da fare
 
-- **Annulla la mossa**: un passo indietro fino a prima dello scarto, per quando si tocca la carta
-  sbagliata.
+- **Gioco online**, a costo zero. La strada è tracciata: il motore è già l'unico arbitro e le
+  mosse sono già scritte in un registro che si spedisce così com'è. Mancano tre pezzi:
+  una stanza con un codice di quattro lettere per invitare l'altro giocatore, il canale che
+  porta le mosse da un telefono all'altro (Supabase Realtime, piano gratuito), e la partita
+  ripresa al volo se uno chiude l'app. Il computer resta come avversario di riserva.
 - **Schermo orizzontale**: girando il telefono le carte dei giochi scendono a 17 px; serve una
   pianta a parte, con i giochi affiancati.
 - **Una versione a parte per il computer**: oggi il PC mostra la stessa pianta del telefono in
   una colonna centrata. Il passo successivo è riconoscere lo schermo largo e disegnare un tavolo
   fatto apposta, che usi la larghezza.
-- **Gioco online** con altre persone.
 
 ---
 

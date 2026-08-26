@@ -70,6 +70,8 @@ html, body{height:100%; overflow:hidden}
   padding:8px; display:flex; flex-direction:column; gap:0;
 }
 .layout{flex:1 1 auto; min-height:0}
+/* [hidden] da solo non basta: display:block più avanti lo scavalcherebbe. */
+.layout[hidden], [hidden]{display:none !important}
 
 /* Il tavolo: il campo da gioco a sinistra, la colonna dei mazzi di fianco.
    Prima i mazzi stavano in una fascia in mezzo e mangiavano altezza a tutti
@@ -86,6 +88,13 @@ html, body{height:100%; overflow:hidden}
 }
 /* tallone e scarti sono i due che si toccano a ogni turno: ben staccati,
    perché sbagliare mazzo costa il turno */
+/* in cima alla colonna i due pulsanti, poi i mazzi nell'ordine del tavolo */
+.btn.mini.colonna{
+  width:100%; padding:4px 2px; font-size:10px; letter-spacing:.04em;
+  border-color:var(--felt-line); color:var(--felt-soft); background:rgba(0,0,0,.18);
+}
+.btn.mini.colonna[data-a="menu"]{font-size:15px; line-height:1; padding:2px}
+.btn.mini.colonna:hover:not(:disabled){border-color:var(--accent-2); color:var(--felt-ink)}
 .mazzi .pile[data-act="stock"]{margin-top:auto}
 .mazzi .pile.scartiera{margin-bottom:auto}
 .mazzi .pile[data-act="stock"] + .pile.scartiera{margin-top:22px}
@@ -348,18 +357,23 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 /* Nei giochi calati le carte si sovrappongono come al tavolo vero: di ogni
    carta si vede solo la striscia con valore e seme, scritti di fianco invece
    che uno sotto l'altro. Striscia più bassa = carte più grandi a parità di posto. */
-.meld .col .card + .card{margin-top:calc(var(--cw) * -0.98)}
+.meld .col .card + .card{margin-top:calc(var(--cw) * -0.96)}
 /* le carte in mezzo a un gioco lungo si stringono: resta scoperto solo il filo
    della carta, quanto basta a contarle e a vedere dove sta la matta */
 .meld .col .card.stretta{margin-top:calc(var(--cw) * -1.26)}
+/* della carta compressa resta solo il filo: niente mezze lettere */
+.meld .col .card.muta .idx{display:none}
+/* L'indice sta tutto dentro la striscia scoperta: se sborda anche di poco,
+   la coda della Q e l'uncino della J restano sotto la carta seguente e si
+   leggono O e I. Perciò: un filo più in alto e un filo più piccolo. */
 .meld .card .idx{
   flex-direction:row; align-items:center; gap:calc(var(--cw) * .05);
-  left:9%; top:7%;
+  left:9%; top:4%;
 }
-.meld .card .idx b{font-size:calc(var(--cw) * .42)}
-.meld .card .idx i{font-size:calc(var(--cw) * .38); margin-top:0}
-.meld .card.dieci .idx b{font-size:calc(var(--cw) * .36); letter-spacing:-.08em}
-.meld .card.dieci .idx i{font-size:calc(var(--cw) * .34)}
+.meld .card .idx b{font-size:calc(var(--cw) * .40)}
+.meld .card .idx i{font-size:calc(var(--cw) * .36); margin-top:0}
+.meld .card.dieci .idx b{font-size:calc(var(--cw) * .34); letter-spacing:-.08em}
+.meld .card.dieci .idx i{font-size:calc(var(--cw) * .32)}
 .meld .card .idx.giu, .meld .card .mid{display:none}
 .meld .col .card:last-child .mid{display:flex}
 
@@ -383,7 +397,7 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 /* ── Centro tavolo ─────────────────────────────────────────── */
 /* stato a sinistra, mazzi al centro, pozzetti a destra */
 /* i pozzetti si guardano una volta a mano: stanno più piccoli del tallone */
-.mazzi .pile{--cw:56px}
+.mazzi .pile{--cw:62px}
 .mazzi .pile.pozzetto{--cw:40px}
 .pile{display:flex; flex-direction:column; align-items:center; gap:6px; --cw:56px}
 .pile .cap{font-size:10.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--felt-soft); text-align:center}
@@ -436,11 +450,13 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
   border-radius:4px; background:rgba(0,0,0,.16);
 }
 .pilewrap{position:relative}
-/* il monte scarti mostra le ultime carte, così si vede cosa c'è sotto */
-.scarti{display:flex; align-items:flex-end}
+/* Il monte scarti mostra le ultime carte, così si vede cosa c'è sotto.
+   In colonna, non di fianco: la fascia dei mazzi è stretta e un ventaglio
+   orizzontale sbordava sul tavolo. L'ultima scartata resta in fondo, intera. */
+.scarti{display:flex; flex-direction:column; align-items:center}
 /* nella colonna dei mazzi il numeretto sulla carta dice già quante sono */
 .mazzi .scarti .altre{display:none}
-.scarti .card + .card{margin-left:calc(var(--cw) * -0.80)}
+.scarti .card + .card{margin-top:calc(var(--cw) * -1.08)}
 .scarti .altre{
   align-self:center; font-size:11px; font-weight:700; color:var(--felt-soft);
   margin-right:4px; font-variant-numeric:tabular-nums;
@@ -505,6 +521,48 @@ details.rules b{color:var(--ink)}
 }
 .riga-scarto .nome{font-size:14px; color:var(--ink)}
 .riga-scarto .card{cursor:default}
+
+/* ══════════════════════════════════════════════════════════════
+   SCHERMATA INIZIALE — si apre qui, e da qui si torna col menu.
+   ══════════════════════════════════════════════════════════════ */
+.home{
+  flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center;
+  overflow-y:auto;
+}
+.home[hidden]{display:none}
+.home-in{
+  width:100%; max-width:380px; display:flex; flex-direction:column; gap:22px;
+  padding:18px 6px;
+}
+.home-testa h1{
+  font-family:"Bodoni Moda",Didot,Georgia,serif; font-weight:700;
+  font-size:clamp(30px,8.5vw,40px); line-height:1.05; letter-spacing:-.01em;
+}
+.home-testa p{
+  margin:8px 0 0; font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--ink-faint);
+}
+.home-scelte{display:flex; flex-direction:column; gap:10px}
+.btn.grande{
+  display:flex; flex-direction:column; align-items:flex-start; gap:3px;
+  text-align:left; padding:14px 16px; border-radius:4px; width:100%;
+}
+.btn.grande b{font-size:16px; font-weight:600; letter-spacing:0}
+.btn.grande small{font-size:12px; opacity:.75; font-weight:400; line-height:1.3}
+.btn.primary.grande small{opacity:.85}
+
+.home-piede{display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap}
+.campo-nome{flex:1 1 150px; display:flex; flex-direction:column; gap:4px; min-width:0}
+.campo-nome span{
+  font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint);
+}
+.campo-nome input{
+  font:inherit; font-size:15px; color:var(--ink);
+  background:var(--panel); border:1px solid var(--edge); border-radius:2px;
+  padding:8px 10px; width:100%;
+}
+.campo-nome input:focus{outline:2px solid var(--accent-2); outline-offset:1px}
+.home-nota{margin:0; font-size:11.5px; line-height:1.45; color:var(--ink-faint)}
 
 /* ── Finestre modali ───────────────────────────────────────── */
 .veil{
@@ -618,7 +676,7 @@ header.top{flex:0 0 auto; align-items:center; gap:8px; flex-wrap:nowrap}
 .pile .cap{font-size:9px; letter-spacing:.08em}
 .pile .cap b{font-size:13px}
 .state .now{font-size:16px}
-.scarti .card + .card{margin-left:calc(var(--cw) * -0.80)}
+.scarti .card + .card{margin-left:0; margin-top:calc(var(--cw) * -1.05)}
 .pile .cap{white-space:nowrap}
 .pilewrap .count{right:-5px; bottom:-5px; min-width:19px; font-size:10px}
 
@@ -640,7 +698,7 @@ header.top{flex:0 0 auto; align-items:center; gap:8px; flex-wrap:nowrap}
 @media (max-width:400px){
   .brand h1{font-size:17px}
   .btn{padding:5px 7px; font-size:11px}
-  .mazzi .pile{--cw:36px}
+  .mazzi .pile{--cw:40px}
   .mazzi .pile.pozzetto{--cw:25px}
   .seat .fan{--cw:27px}
 }
