@@ -80,7 +80,12 @@ aside{min-height:0; height:100%; overflow-y:auto; scrollbar-width:thin}
   align-content:flex-start; scrollbar-width:none;
 }
 .zone.giochi .melds::-webkit-scrollbar{display:none}
-/* l'etichetta della fascia galleggia in un angolo: non ruba altezza alle carte */
+/* ripiego quando i giochi sono troppi per starci tutti a vista: fila unica che
+   scorre di lato. Meglio scorrere che vedere un gioco tagliato a metà dal bordo. */
+.zone.giochi .melds.infila{
+  flex-wrap:nowrap; justify-content:flex-start;
+  overflow-x:auto; overflow-y:hidden;
+}
 /* l'etichetta della fascia è ridotta all'osso: due parole e i contrassegni,
    così l'altezza va tutta alle carte */
 .zone.giochi > .seat-label{margin-bottom:3px; font-size:9px; line-height:1.2; gap:6px}
@@ -114,7 +119,16 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 
 /* ── Impianto ──────────────────────────────────────────────── */
 .layout{display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:14px; align-items:stretch}
-@media (max-width:1000px){.layout{grid-template-columns:minmax(0,1fr)}}
+/* Sotto i 1000 px la colonna laterale finirebbe sotto il tavolo, rubandogli
+   metà altezza: si nasconde e punteggio, cronaca e menu passano nei pulsanti
+   in testata, come sul telefono. */
+@media (max-width:1000px){
+  .layout{grid-template-columns:minmax(0,1fr)}
+  .layout > aside{display:none}
+  .top-actions .solo-telefono{display:inline-block}
+  .top-actions .no-telefono{display:none}
+  .top-actions #btn-menu{font-size:16px; line-height:1; padding:5px 10px}
+}
 
 .panel{background:var(--panel); border:1px solid var(--edge); border-radius:3px; box-shadow:0 1px 0 var(--shadow)}
 
@@ -151,7 +165,11 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 .croce{display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:14px}
 .croce .lato .seat{flex-direction:column; gap:5px}
 /* di fianco al tavolo la mano si tiene di taglio: le carte si impilano */
-.croce .lato .fan{flex-direction:column; align-items:center; padding-top:0; --cw:34px}
+.croce .lato .fan{
+  flex-direction:column; align-items:center; padding-top:0; --cw:34px;
+  /* la pila di dorsi non deve mai far crescere la banda centrale */
+  max-height:calc(var(--cw) * 2.6); overflow:hidden;
+}
 .croce .lato .fan .card{transform:none !important; transform-origin:50% 50%}
 .croce .lato .fan .card + .card{margin-left:0; margin-top:calc(var(--cw) * -1.16)}
 .croce .lato .who{text-align:center; max-width:11ch}

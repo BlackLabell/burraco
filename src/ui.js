@@ -98,12 +98,15 @@ function slotHTML() { return `<div class="slot"></div>`; }
 /** Le scale si posano in verticale, i tris in orizzontale, come sul tavolo vero. */
 function meldHTML(m, clickable) {
   const carte = m.slots.map(s => cardHTML(s.card, s.wild ? 'wild' : ''));
-  // una scala lunga in colonna unica diventa altissima: si spezza in due
-  // colonne affiancate, come quando al tavolo si allarga il gioco
-  const taglio = carte.length >= 8 ? Math.ceil(carte.length / 2) : carte.length;
-  const cards = [carte.slice(0, taglio), carte.slice(taglio)]
-    .filter(c => c.length)
-    .map(c => `<div class="col">${c.join('')}</div>`).join('');
+  // Una scala lunga in colonna unica diventa altissima e va tagliata dal bordo.
+  // Al massimo cinque carte per colonna: così ogni gioco, corto o lungo, resta
+  // alto uguale e ci sta sempre intero. Le colonne si affiancano, come quando
+  // al tavolo si allarga il gioco per farlo stare nello spazio.
+  const nCol = Math.ceil(carte.length / 5);
+  const dim = Math.ceil(carte.length / nCol);
+  const colonne = [];
+  for (let i = 0; i < carte.length; i += dim) colonne.push(carte.slice(i, i + dim));
+  const cards = colonne.map(c => `<div class="col">${c.join('')}</div>`).join('');
   const b = E.burracoType(m);
   const classi = [
     'meld',
@@ -208,10 +211,14 @@ function adattaMano() {
   el.style.removeProperty('--passo');
   const n = el.children.length;
   if (n < 2) return;
+  // si guarda il risultato vero: se le carte sono finite su più di una riga,
+  // allora vanno sovrapposte, qualunque conto si potesse fare prima
+  // offsetTop e non getBoundingClientRect: durante l'animazione di distribuzione
+  // le carte sono spostate da una trasformazione, ma la riga vera è una sola
+  const righe = new Set([...el.children].map(c => c.offsetTop));
+  if (righe.size <= 1) return;
   const cw = el.firstElementChild.getBoundingClientRect().width;
   const spazio = el.clientWidth;
-  const gap = parseFloat(getComputedStyle(el).columnGap) || 0;
-  if (n * cw + (n - 1) * gap <= spazio) return;
   const passo = Math.max(cw * 0.30, (spazio - cw) / (n - 1));
   el.classList.add('ventaglio');
   el.style.setProperty('--passo', passo.toFixed(1) + 'px');
@@ -351,25 +358,33 @@ function render() {
  * Si misura dopo aver disegnato, perché solo il browser sa quanto spazio c'è.
  */
 function adattaGiochi() {
-  const fasce = [...document.querySelectorAll('.zone.giochi .melds')];
-  const tetto = fasce.map(el => parseFloat(el.style.getPropertyValue('--cw')) || 44);
-  // le due fasce si contendono l'altezza: quando una rimpicciolisce l'altra
-  // guadagna spazio, quindi si ripassa finché le misure non si assestano
-  for (let giro = 0; giro < 5; giro++) {
-    let cambiato = false;
-    fasce.forEach((el, i) => {
-      const st = getComputedStyle(el);
-      const spazio = el.clientHeight - parseFloat(st.paddingTop) - parseFloat(st.paddingBottom);
-      if (spazio <= 0) return;
-      let piuAlto = 0;
-      for (const m of el.children) piuAlto = Math.max(piuAlto, m.offsetHeight);
-      if (!piuAlto) return;
-      const cw = parseFloat(el.style.getPropertyValue('--cw')) || tetto[i];
-      // mai più grandi del previsto, mai sotto la misura in cui non si leggono
-      const nuovo = Math.min(tetto[i], Math.max(24, Math.floor(cw * (spazio - 2) / piuAlto)));
-      if (Math.abs(nuovo - cw) >= 1) { el.style.setProperty('--cw', nuovo + 'px'); cambiato = true; }
-    });
-    if (!cambiato) break;
+  for (const el of document.querySelectorAll('.zone.giochi .melds')) {
+    if (!el.clientHeight || !el.children.length) continue;
+    const tetto = parseFloat(el.style.getPropertyValue('--cw')) || 44;
+    // vero quando tutti i giochi, comprese le righe che vanno a capo, stanno
+    // dentro la fascia: nessuno viene tagliato dal bordo
+    const ciSta = c => {
+      el.style.setProperty('--cw', c + 'px');
+      return el.scrollHeight <= el.clientHeight;
+    };
+    // ricerca per dimezzamenti: pochi passaggi per trovare la misura più
+    // grande che ci sta ancora tutta
+    const cerca = () => {
+      if (ciSta(tetto)) return true;
+      let basso = 15, alto = tetto;
+      while (alto - basso > 1) {
+        const mezzo = Math.floor((alto + basso) / 2);
+        if (ciSta(mezzo)) basso = mezzo; else alto = mezzo;
+      }
+      return ciSta(basso);
+    };
+    el.classList.remove('infila');
+    if (cerca()) continue;
+    // se nemmeno alla misura minima ci stanno tutti in colonne che vanno a capo,
+    // si mettono in fila unica e la fascia scorre di lato: meglio scorrere che
+    // vedere un gioco tagliato a metà dal bordo
+    el.classList.add('infila');
+    cerca();
   }
 }
 

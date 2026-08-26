@@ -5,7 +5,7 @@
 Burraco italiano contro il computer, uno contro uno o a coppie, con le regole ufficiali.
 Gira nel browser, si installa sul telefono e funziona anche senza connessione.
 
-**Versione pubblicata:** `burraco-v13` — 26 agosto 2026
+**Versione pubblicata:** `burraco-v14` — 26 agosto 2026
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server, nessun account
 a pagamento, nessun dominio da comprare.
 
@@ -18,6 +18,19 @@ a pagamento, nessun dominio da comprare.
 ## Novità
 
 Le voci più recenti stanno in alto. Ogni riga corrisponde a una versione di `sw.js`.
+
+### `burraco-v14` — 26 agosto 2026
+Correzioni trovate col collaudo automatico su sei misure di schermo, dal telefono al 1920.
+- **Tablet e finestre strette (761–1000 px):** la colonna laterale finiva *sotto* il tavolo e gli
+  rubava metà altezza — le fasce dei giochi restavano alte 21 px. Ora sotto i 1000 px la colonna
+  sparisce e punteggio, cronaca e menu passano nei pulsanti in testata, come sul telefono.
+- **Nessun gioco tagliato, davvero.** Le carte di una fascia si cercano ora per dimezzamenti la
+  misura più grande alla quale *tutti* i giochi ci stanno, righe a capo comprese; se non basta,
+  la fascia passa a fila unica che scorre di lato. Al massimo cinque carte per colonna, quindi
+  una scala da 13 diventa tre colonne affiancate e resta bassa come un tris.
+- **La mano non va mai a capo:** si controlla il risultato vero invece di stimarlo, e non si
+  confonde più con l'animazione di distribuzione.
+- **A coppie**, la pila di dorsi di Est e Ovest non fa più crescere la banda centrale.
 
 ### `burraco-v13` — 26 agosto 2026
 - **Una schermata sola anche da computer.** Il tavolo sta dentro l'altezza della finestra a
@@ -174,7 +187,7 @@ migliaia di partite. È quello che fanno i test.
 
 1. Cambia il codice.
 2. `npm test` — se un test si rompe, hai toccato una regola.
-3. **Alza `VERSIONE` in `sw.js`** (`burraco-v13` → `burraco-v14`). Senza questo passaggio chi ha
+3. **Alza `VERSIONE` in `sw.js`** (`burraco-v14` → `burraco-v15`). Senza questo passaggio chi ha
    già aperto l'app continua a vedere la versione vecchia presa dalla cache.
 4. Aggiungi una voce in **Novità** qui sopra e aggiorna la versione in cima al file.
 5. Carica su `main`.
