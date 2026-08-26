@@ -5,7 +5,7 @@
 Burraco italiano contro il computer, uno contro uno o a coppie, con le regole ufficiali.
 Gira nel browser, si installa sul telefono e funziona anche senza connessione.
 
-**Versione pubblicata:** `burraco-v15` — 26 agosto 2026
+**Versione pubblicata:** `burraco-v19` — 26 agosto 2026
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server, nessun account
 a pagamento, nessun dominio da comprare.
 
@@ -22,6 +22,64 @@ a pagamento, nessun dominio da comprare.
 ## Novità
 
 Le voci più recenti stanno in alto. Ogni riga corrisponde a una versione di `sw.js`.
+
+### `burraco-v19` — 26 agosto 2026
+**Le carte volano.** Prima ogni mossa era un salto: la carta spariva da una parte e compariva
+dall'altra. Adesso si vede il tragitto, tuo e del computer.
+- **Pescata**: la carta parte dal tallone (o dal monte, e allora ne parte un mazzetto) e arriva
+  in mano.
+- **Calata e attacco**: le carte scelte partono dalla mano e si posano sui vostri giochi.
+  Partono a scaletta, una ogni 45 millisecondi, così si contano.
+- **Scarto**: la carta va dalla mano al monte.
+- **Turno del computer**: si vede da dove pesca, quante carte cala e quale carta scarta —
+  quella scoperta, così sai subito cos'è finito sul monte.
+
+Il volo dura 250-280 millisecondi: si segue senza dover aspettare. Chi ha attivato *riduci le
+animazioni* nelle impostazioni del telefono non lo vede: le mosse restano istantanee.
+
+### `burraco-v18` — 26 agosto 2026
+- **Carte rimesse a posto.** Sui giochi calati l'ultima carta mostrava insieme il segno grande al
+  centro *e* l'indice capovolto in basso a destra: si sovrapponevano e la carta sembrava sbagliata
+  (`K` addosso a `K`, `♠` addosso al `3`). Nei giochi l'indice capovolto adesso non c'è.
+  Sulle carte con i semi disposti (dal 2 al 10) l'indice capovolto cadeva in mezzo ai semi:
+  tolto anche lì. Figure e assi lo tengono, perché il centro è libero.
+  Indice d'angolo un filo più piccolo e semi un filo più stretti, così non si toccano mai.
+- **La colonna dei mazzi riordinata come al tavolo:** il pozzetto **loro** in cima, il **vostro**
+  in fondo, e in mezzo tallone e monte scarti, staccati di 32 px — perché è lì che si tocca a ogni
+  turno e sbagliare mazzo costa il turno.
+- **Pressione lunga sul monte scarti**: si apre l'elenco di tutte le carte, dalla più recente in
+  giù, con nome e figura. Serve quando il monte cresce e sotto non si vede più niente.
+  Sul computer funziona anche col tasto destro. Guardare non pesca: il tocco che segue non conta.
+- I punti del burraco sono passati in fondo al gioco: in cima coprivano il primo valore.
+
+### `burraco-v17` — 26 agosto 2026
+**Tolto tutto quello che non è gioco.** Il tavolo adesso parte dal bordo dello schermo.
+- **Via la testata** con il titolo "Tavolo da Burraco": *Punti* e il menu ☰ sono scesi nella riga
+  della mano, di fianco a *Per seme*. Sul telefono stanno anche più comodi, sotto il pollice.
+- **Via le etichette *Loro* e *Voi*** sopra i giochi calati, e con loro i contrassegni
+  *pozzetto preso* e *burraco*: erano ripetizioni. Il pozzetto preso si vede dal mazzo spento
+  nella colonna di destra, il burraco dal bordo in ottone e dai punti sul gioco. La tua zona
+  resta riconoscibile dal bordo tratteggiato.
+- Margini della pagina ridotti da 12-14 px a 8.
+
+In tutto sono circa 80 px in più per le carte. Sull'iPhone 12 le carte dei giochi calati sono
+passate da 36 a 43 px, sull'iPhone SE da 19 a 28.
+
+### `burraco-v16` — 26 agosto 2026
+**Da qui in avanti il disegno è pensato per il telefono**, che è dove si gioca. La coperta era
+corta: ogni misura andava bene per uno schermo e stretta per un altro. Ora c'è una pianta sola,
+tarata sul telefono; su computer resta la stessa, in una colonna centrata larga come un telefono.
+La versione vera per computer sarà un'altra, disegnata a parte.
+- **Un burraco non si spezza più in due colonne.** Ogni gioco resta in una colonna sola: quando è
+  lungo si *comprime*, come quando al tavolo stringi le carte in mano. Restano scoperte solo
+  quelle che servono a leggerlo — la prima, l'ultima, e la matta con la carta che le sta sopra,
+  così si vede sempre dov'è. In una scala pulita i valori in mezzo si sanno già.
+  Un gioco da 7 carte è alto come uno da 5.
+- **La mano si prende tutta la larghezza:** la colonna dei mazzi si ferma sopra, dove serve.
+- **Carte in mano più piccole del 10 %** (68 px invece di 76): ci stanno più carte in fila senza
+  sovrapporsi.
+- Suggerimenti riscritti più corti, così stanno in una riga anche su schermi piccoli.
+- Provato su cinque telefoni veri, dal 375×667 al 430×932, in tutti e due i temi.
 
 ### `burraco-v15` — 26 agosto 2026
 **I giochi calati sono diventati il doppio o il triplo.** Due mosse, tutte e due sullo spazio:
@@ -133,7 +191,13 @@ Correzioni trovate col collaudo automatico su sei misure di schermo, dal telefon
 
 ## Da fare
 
-- Animazioni anche per la pescata singola e per la calata.
+- **Annulla la mossa**: un passo indietro fino a prima dello scarto, per quando si tocca la carta
+  sbagliata.
+- **Schermo orizzontale**: girando il telefono le carte dei giochi scendono a 17 px; serve una
+  pianta a parte, con i giochi affiancati.
+- **Una versione a parte per il computer**: oggi il PC mostra la stessa pianta del telefono in
+  una colonna centrata. Il passo successivo è riconoscere lo schermo largo e disegnare un tavolo
+  fatto apposta, che usi la larghezza.
 - **Gioco online** con altre persone.
 
 ---
@@ -214,7 +278,7 @@ migliaia di partite. È quello che fanno i test.
 
 1. Cambia il codice.
 2. `npm test` — se un test si rompe, hai toccato una regola.
-3. **Alza `VERSIONE` in `sw.js`** (`burraco-v15` → `burraco-v16`). Senza questo passaggio chi ha
+3. **Alza `VERSIONE` in `sw.js`** (`burraco-v19` → `burraco-v20`). Senza questo passaggio chi ha
    già aperto l'app continua a vedere la versione vecchia presa dalla cache.
 4. Aggiungi una voce in **Novità** qui sopra e aggiorna la versione in cima al file.
 5. Carica su `main`.

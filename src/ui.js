@@ -47,7 +47,7 @@ function loadTheme() {
 /* Disposizione dei semi come sulle carte vere: tre colonne
    (sinistra, centro, destra) e sette righe, dalla 0 in alto alla 6 in
    basso. I semi della metà bassa sono capovolti, come stampati davvero. */
-const COL = { l: 36, c: 50, r: 64 };
+const COL = { l: 38, c: 50, r: 62 };
 const SEMI = {
   2: [['c', 0], ['c', 6]],
   3: [['c', 0], ['c', 3], ['c', 6]],
@@ -63,7 +63,7 @@ function semiHTML(r, S) {
   const posti = SEMI[r];
   if (!posti) return '';
   const pips = posti.map(([col, riga]) => {
-    const y = 15 + riga * (70 / 6);
+    const y = 16 + riga * (68 / 6);
     const giu = riga > 3 ? ' scale(-1)' : '';
     return `<i style="left:${COL[col]}%; top:${y.toFixed(2)}%; transform:translate(-50%,-50%)${giu}">${S}</i>`;
   }).join('');
@@ -84,11 +84,12 @@ function cardHTML(c, extra = '', i = 0) {
   const figura = c.r >= 11 && c.r <= 13;
   // il segno grande serve quando la carta è piccola (giochi calati);
   // la disposizione a semi compare solo dove c'è spazio per leggerla
+  const semi = semiHTML(c.r, S);
   const centro = figura
     ? `<span class="mid"><span class="figura">${R}</span></span>`
-    : `<span class="mid"><span class="pip ${c.r === 14 ? 'asso' : ''}">${S}</span>${semiHTML(c.r, S)}</span>`;
+    : `<span class="mid"><span class="pip ${c.r === 14 ? 'asso' : ''}">${S}</span>${semi}</span>`;
   const idx = `<b>${R}</b><i>${S}</i>`;
-  return `<div class="card ${red} ${stretta} ${extra}" style="--i:${i}" data-id="${c.id}" title="${E.cardLabel(c)}">
+  return `<div class="card ${red} ${stretta} ${semi ? 'apip' : ''} ${extra}" style="--i:${i}" data-id="${c.id}" title="${E.cardLabel(c)}">
     <span class="idx">${idx}</span>${centro}<span class="idx giu">${idx}</span>
   </div>`;
 }
@@ -97,16 +98,25 @@ function slotHTML() { return `<div class="slot"></div>`; }
 
 /** Le scale si posano in verticale, i tris in orizzontale, come sul tavolo vero. */
 function meldHTML(m, clickable) {
-  const carte = m.slots.map(s => cardHTML(s.card, s.wild ? 'wild' : ''));
-  // Una scala lunga in colonna unica diventa altissima e va tagliata dal bordo.
-  // Al massimo cinque carte per colonna: così ogni gioco, corto o lungo, resta
-  // alto uguale e ci sta sempre intero. Le colonne si affiancano, come quando
-  // al tavolo si allarga il gioco per farlo stare nello spazio.
-  const nCol = Math.ceil(carte.length / 5);
-  const dim = Math.ceil(carte.length / nCol);
-  const colonne = [];
-  for (let i = 0; i < carte.length; i += dim) colonne.push(carte.slice(i, i + dim));
-  const cards = colonne.map(c => `<div class="col">${c.join('')}</div>`).join('');
+  const n = m.slots.length;
+  /* Un gioco resta sempre in una colonna sola: un burraco spezzato in due non
+     si riconosce più. Quando è lungo si comprime, come quando al tavolo stringi
+     le carte: si lasciano scoperte solo quelle che servono davvero a leggerlo —
+     la prima, l'ultima, e la matta con la carta che le sta sopra, così si vede
+     dov'è. Le altre restano una striscia sottile: in una scala pulita i valori
+     in mezzo si sanno già, vanno dalla prima all'ultima. */
+  const scoperta = new Array(n).fill(n <= 6);
+  scoperta[0] = true;
+  m.slots.forEach((s, i) => {
+    if (!s.wild) return;
+    scoperta[i] = true;
+    if (i > 0) scoperta[i - 1] = true;
+  });
+  const carte = m.slots.map((s, i) => cardHTML(
+    s.card,
+    (s.wild ? 'wild ' : '') + (i > 0 && !scoperta[i - 1] ? 'stretta' : '')
+  ));
+  const cards = `<div class="col">${carte.join('')}</div>`;
   const b = E.burracoType(m);
   const classi = [
     'meld',
@@ -145,14 +155,76 @@ function manoOrdinata() {
   return out;
 }
 
-/* ---------- Render ---------- */
+/* ---------- Il volo delle carte ─────────────────────────────
+   Ogni mossa si vede: la carta parte da dove sta e arriva dove va.
+   I rettangoli si misurano PRIMA di toccare lo stato, così la partenza
+   è la posizione vera; poi si ridisegna, a volo finito.            */
 
-function teamChips(team) {
-  const out = [];
-  if (G.teams[team].pozzetto) out.push(`<span class="chip on">pozzetto preso</span>`);
-  if (E.hasBurraco(G, team)) out.push(`<span class="chip on">burraco</span>`);
-  return out.join(' ');
+const senzaMoto = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const rett = el => (el ? el.getBoundingClientRect() : null);
+
+const elMazzo = () => document.querySelector('.pile[data-act="stock"] .pilewrap');
+const elScarti = () => document.querySelector('.pile.scartiera .pilewrap');
+const elGiochiDi = team => document.querySelector(team === HUMAN
+  ? '#my-melds' : '.zone.giochi:not(.mia) .melds');
+const elPosto = p => document.querySelector(`.seat[data-p="${p}"] .fan`);
+
+/** Il punto della mano dove una carta nuova si va a posare. */
+function postoInMano() {
+  const h = $('hand');
+  if (!h) return null;
+  const r = h.getBoundingClientRect();
+  const c = h.querySelector('.card');
+  const w = c ? c.getBoundingClientRect().width : 60;
+  return { left: r.left + r.width / 2 - w / 2, top: r.top, width: w, height: w * 1.42 };
 }
+
+/** Il centro di una zona, con la misura di una carta di quella zona. */
+function postoIn(el, largh) {
+  const r = rett(el);
+  if (!r) return null;
+  const c = el.querySelector('.card');
+  const w = largh || (c ? c.getBoundingClientRect().width : 40);
+  return { left: r.left + r.width / 2 - w / 2, top: r.top + 8, width: w, height: w * 1.42 };
+}
+
+/**
+ * Manda in volo dei cloni di carta da un rettangolo all'altro.
+ * `pezzi` è un elenco di { html, da, a }: partono a scaletta, non tutti
+ * insieme, così si contano anche quando sono parecchie.
+ */
+function vola(pezzi, ms = 280) {
+  pezzi = pezzi.filter(x => x && x.da && x.a);
+  if (senzaMoto() || !pezzi.length) return Promise.resolve();
+  const passo = 45;
+  const cloni = pezzi.map(({ html, da, a }, i) => {
+    const box = document.createElement('div');
+    box.innerHTML = html;
+    const el = box.firstElementChild;
+    el.className = el.className.replace(/\bsel\b/g, '') + ' in-volo';
+    el.style.cssText += `;left:${da.left}px; top:${da.top}px;` +
+      `width:${da.width}px; height:${da.height}px;` +
+      `--dx:${a.left - da.left}px; --dy:${a.top - da.top}px;` +
+      `--sc:${(a.width / da.width).toFixed(3)};` +
+      `animation-duration:${ms}ms; animation-delay:${i * passo}ms`;
+    document.body.appendChild(el);
+    return el;
+  });
+  return sleep(ms + (pezzi.length - 1) * passo + 30)
+    .then(() => cloni.forEach(e => e.remove()));
+}
+
+/** Le carte scelte che stanno per lasciare la mano: da dove partono. */
+function partenzeDallaMano(ids) {
+  return ids.map(id => {
+    const el = document.querySelector(`#hand .card[data-id="${id}"]`);
+    if (!el) return null;
+    el.style.visibility = 'hidden';      // non si vede due volte la stessa carta
+    return { el, da: rett(el) };
+  }).filter(Boolean);
+}
+
+/* ---------- Render ---------- */
 
 /** La mano coperta di un altro giocatore, a ventaglio. */
 function seatHTML(p) {
@@ -160,15 +232,16 @@ function seatHTML(p) {
   if (dealCount !== null) n = Math.min(n, dealCount);
   if (pozzettoAnim && pozzettoAnim.p === p) n = pozzettoAnim.n;
   const gioca = G.turn === p && !G.handOver && dealCount === null;
-  const mostrate = Math.min(n, 13);
+  // su schermo stretto bastano pochi dorsi: il numero è scritto di fianco
+  const mostrate = Math.min(n, window.innerWidth < 480 ? 6 : 13);
   let fan = '';
   for (let i = 0; i < mostrate; i++) {
     const rot = (i - (mostrate - 1) / 2) * 3.4;
     fan += `<div class="card back" style="transform:rotate(${rot.toFixed(1)}deg)"></div>`;
   }
-  return `<div class="seat ${gioca ? 'now' : ''}">
+  return `<div class="seat ${gioca ? 'now' : ''}" data-p="${p}">
     <div class="fan ${n ? '' : 'empty'}">${fan}</div>
-    <div class="who"><b>${G.names[p]}</b><span class="sep"> · </span>${n}<span class="unita"> ${n === 1 ? 'carta' : 'carte'}</span>${gioca ? '<span class="unita"> · gioca</span>' : ''}</div>
+    <div class="who"><b>${G.names[p]}</b><span class="sep"> · </span>${n}<span class="unita"> ${n === 1 ? 'carta' : 'carte'}</span>${gioca ? '<span class="gioca"> · gioca</span>' : ''}</div>
   </div>`;
 }
 function seatsOf(team) {
@@ -188,8 +261,7 @@ function meldsHTML(team, clickable) {
   });
   // Misura di partenza generosa: tanto è adattaGiochi() a cercare, misurando,
   // la più grande che ci sta davvero nella fascia. Qui si dice solo "non oltre".
-  const w = window.innerWidth;
-  const cw = w < 620 ? 40 : w < 1100 ? 50 : w < 1560 ? 60 : 68;
+  const cw = 56;
   return {
     cw,
     html: melds.map(m => meldHTML(m, clickable(m))).join(''),
@@ -248,18 +320,17 @@ function render() {
     if (dealCount !== null) hint = 'Distribuzione in corso…';
     else if (G.handOver) hint = 'Mano conclusa.';
     else if (busy || G.turn !== HUMAN) hint = '';
-    else if (G.phase === 'draw') hint = 'Pesca dal tallone, o prendi il monte scarti.';
-    else if (calataValida) hint = 'Clicca la zona di calata per aprire il gioco.';
-    else if (scelte.length >= 3) hint = 'Queste carte non formano una scala né un tris.';
+    else if (G.phase === 'draw') hint = 'Pesca dal tallone o prendi il monte.';
+    else if (calataValida) hint = 'Tocca la tua zona per calare.';
+    else if (scelte.length >= 3) hint = 'Non fanno né scala né tris.';
     else if (scelte.length === 1) hint = quantiAccettano
-      ? 'Clicca il monte scarti per scartarla, o il gioco evidenziato per attaccarla.'
-      : 'Clicca il monte scarti per scartarla.';
-    else if (scelte.length === 2) hint = 'Servono almeno 3 carte per aprire un gioco nuovo.';
-    else hint = 'Scegli le carte dalla mano. Trascinale per riordinarle.';
+      ? 'Scarta sul monte, o attacca al gioco acceso.'
+      : 'Tocca il monte per scartarla.';
+    else if (scelte.length === 2) hint = 'Servono almeno 3 carte.';
+    else hint = 'Scegli le carte. Trascina per riordinare.';
   }
 
   // il monte scarti si vede tutto: le ultime carte a ventaglio, la più recente in cima
-  const stretto = window.innerWidth < 760;
   const visibili = G.discard.slice(0, 3).reverse();
   const nascoste = G.discard.length - visibili.length;
   const montaggio = visibili.length
@@ -268,7 +339,14 @@ function render() {
 
   /* I mazzi stanno in una colonna di fianco al tavolo, non più in una fascia
      in mezzo: la fascia mangiava altezza a tutti e due i giochi calati. */
+  /* Ordine dall'alto: il pozzetto loro sta dalla loro parte, il vostro dalla
+     vostra, e in mezzo tallone e scarti — ben staccati, perché è lì che si tocca
+     a ogni turno e sbagliare mazzo costa il turno. */
   const mazzi = `
+    <div class="pile pozzetto ${G.teams[1].pozzetto ? 'dim' : ''}">
+      <div class="pilewrap">${G.pozzetti[1].length ? backHTML() : slotHTML()}</div>
+      <div class="cap">Loro<b>${G.teams[1].pozzetto ? 'preso' : G.pozzetti[1].length}</b></div>
+    </div>
     <div class="pile ${canDraw && G.stock.length ? 'click' : ''} ${G.stock.length ? '' : 'dim'}" data-act="stock">
       <div class="pilewrap">${G.stock.length ? backHTML() : slotHTML()}<span class="count">${G.stock.length}</span></div>
       <div class="cap">Tallone</div>
@@ -280,10 +358,6 @@ function render() {
     <div class="pile pozzetto ${G.teams[0].pozzetto ? 'dim' : ''}">
       <div class="pilewrap">${G.pozzetti[0].length ? backHTML() : slotHTML()}</div>
       <div class="cap">Vostro<b>${G.teams[0].pozzetto ? 'preso' : G.pozzetti[0].length}</b></div>
-    </div>
-    <div class="pile pozzetto ${G.teams[1].pozzetto ? 'dim' : ''}">
-      <div class="pilewrap">${G.pozzetti[1].length ? backHTML() : slotHTML()}</div>
-      <div class="cap">Loro<b>${G.teams[1].pozzetto ? 'preso' : G.pozzetti[1].length}</b></div>
     </div>`;
 
   const stato = `
@@ -321,23 +395,23 @@ function render() {
           ${stato}
         </section>
         <section class="zone giochi">
-          <div class="seat-label">Loro ${teamChips(1)}</div>
           <div class="melds" style="--cw:${oppM.cw}px">${oppMelds}</div>
         </section>
         <section class="zone giochi mia">
-          <div class="seat-label">Voi ${teamChips(0)}</div>
           <div class="melds zona ${calataValida ? 'armata' : ''}" id="my-melds" style="--cw:${myM.cw}px">${myMelds}</div>
-        </section>
-        <section class="zone mano">
-          <div class="seat-label mano-h"><b>${nMano} ${nMano === 1 ? 'carta' : 'carte'}</b>
-            ${sel.size ? `<span class="chip on">${sel.size} scelte</span>` : ''}
-            <button class="btn ghost mini" data-a="sort" title="Cambia l'ordine della mano">Per ${sortMode === 'rank' ? 'seme' : 'valore'}</button></div>
-          <div class="hand ${dealing ? 'deal' : ''}" id="hand">${hand}</div>
         </section>
       </div>
       ${croce ? `<div class="posto-lato">${seatHTML(1)}</div>` : ''}
       <div class="mazzi">${mazzi}</div>
-    </div>`;
+    </div>
+    <section class="zone mano">
+      <div class="seat-label mano-h"><b>${nMano} ${nMano === 1 ? 'carta' : 'carte'}</b>
+        ${sel.size ? `<span class="chip on">${sel.size} scelte</span>` : ''}
+        <button class="btn ghost mini" data-a="sort" title="Cambia l'ordine della mano">Per ${sortMode === 'rank' ? 'seme' : 'valore'}</button>
+        <button class="btn ghost mini" data-a="punti" title="Punteggio e cronaca">Punti</button>
+        <button class="btn ghost mini" data-a="menu" title="Menu" aria-label="Menu">☰</button></div>
+      <div class="hand ${dealing ? 'deal' : ''}" id="hand">${hand}</div>
+    </section>`;
 
   adattaMano();
   adattaGiochi();
@@ -400,8 +474,10 @@ function scegli(id) {
 
 function bindOnce() {
   const board = $('board');
+  let attesa = null, ispezionato = false;
 
   board.addEventListener('click', ev => {
+    if (ispezionato) { ispezionato = false; return; }
     const pile = ev.target.closest('.pile[data-act]');
     if (pile) {
       const mio = !busy && !G.handOver && G.turn === HUMAN && dealCount === null;
@@ -416,13 +492,35 @@ function bindOnce() {
     if (zona) { doMeld(); return; }
     const btn = ev.target.closest('button[data-a]');
     if (!btn || btn.disabled) return;
-    if (btn.dataset.a === 'meld') doMeld();
-    else if (btn.dataset.a === 'discard') doDiscard();
-    else {
+    const a = btn.dataset.a;
+    if (a === 'meld') doMeld();
+    else if (a === 'discard') doDiscard();
+    else if (a === 'punti') punteggioDialog();
+    else if (a === 'menu') menuDialog();
+    else if (a === 'sort') {
       sortMode = sortMode === 'rank' ? 'suit' : 'rank';
       handOrder = [];               // l'ordinamento automatico ha la precedenza
       save(); render();
     }
+  });
+
+  /* Pressione lunga sul monte scarti: si apre l'elenco di tutte le carte,
+     dalla più recente in fondo. Serve quando il monte cresce e sotto non si
+     vede più niente. */
+  const annullaAttesa = () => { clearTimeout(attesa); attesa = null; };
+  board.addEventListener('pointerdown', ev => {
+    if (ev.button > 0) return;
+    if (!ev.target.closest('.pile.scartiera')) return;
+    annullaAttesa();
+    attesa = setTimeout(() => { attesa = null; ispezionato = true; scartiDialog(); }, 450);
+  });
+  board.addEventListener('pointermove', ev => {
+    if (attesa && ev.movementX * ev.movementX + ev.movementY * ev.movementY > 25) annullaAttesa();
+  });
+  board.addEventListener('pointerup', annullaAttesa);
+  board.addEventListener('pointercancel', annullaAttesa);
+  board.addEventListener('contextmenu', ev => {
+    if (ev.target.closest('.pile.scartiera')) { ev.preventDefault(); scartiDialog(); }
   });
 
   /* Trascinamento delle carte in mano: funziona con mouse e con il dito.
@@ -517,16 +615,25 @@ function after(r) {
   return true;
 }
 
-function doDraw(src) {
+async function doDraw(src) {
   if (busy || G.turn !== HUMAN || G.phase !== 'draw') return;
+  const da = rett(src === 'stock' ? elMazzo() : elScarti());
+  const a = postoInMano();
+  const quante = src === 'stock' ? 1 : Math.min(G.discard.length, 5);
+  busy = true;
+  await vola(Array.from({ length: quante }, () => ({ html: backHTML(), da, a })), 250);
+  busy = false;
   const r = E.draw(G, HUMAN, src);
   if (!after(r)) return;
   dealing = false; render();
 }
 
 async function doMeld() {
-  const r = E.meldNew(G, HUMAN, [...sel]);
-  if (!after(r)) return;
+  const scelte = [...sel];
+  const prova = E.solveMeld(G.hands[HUMAN].filter(c => sel.has(c.id)));
+  if (prova) await volaVerso(scelte, elGiochiDi(HUMAN));
+  const r = E.meldNew(G, HUMAN, scelte);
+  if (!after(r)) { render(); return; }
   render();
   if (r.pozzetto) await animaPozzetto(HUMAN);
   if (G.handOver) { finishHand(); return; }
@@ -534,8 +641,10 @@ async function doMeld() {
 }
 
 async function doAttack(meldId) {
-  const r = E.addToMeld(G, HUMAN, meldId, [...sel]);
-  if (!after(r)) return;
+  const scelte = [...sel];
+  await volaVerso(scelte, document.querySelector(`#my-melds .meld[data-meld="${meldId}"]`));
+  const r = E.addToMeld(G, HUMAN, meldId, scelte);
+  if (!after(r)) { render(); return; }
   render();
   if (r.pozzetto) await animaPozzetto(HUMAN);
   if (G.handOver) { finishHand(); return; }
@@ -544,12 +653,30 @@ async function doAttack(meldId) {
 
 async function doDiscard() {
   const id = [...sel][0];
+  await volaVerso([id], elScarti());
   const r = E.discard(G, HUMAN, id);
-  if (!after(r)) return;
+  if (!after(r)) { render(); return; }
   render();
   if (r.pozzetto) await animaPozzetto(HUMAN);
   if (G.handOver) { finishHand(); return; }
   await runAI();
+}
+
+/** Manda in volo le carte scelte dalla mano fino a una zona del tavolo. */
+async function volaVerso(ids, destEl) {
+  const a = postoIn(destEl);
+  if (!a) return;
+  const partenze = partenzeDallaMano(ids);
+  const mano = G.hands[HUMAN];
+  const pezzi = partenze.map(({ da }, i) => {
+    const c = mano.find(x => x.id === ids[i]);
+    return { html: c ? cardHTML(c) : backHTML(), da, a };
+  });
+  const eraOccupato = busy;
+  busy = true;
+  await vola(pezzi, 260);
+  busy = eraOccupato;
+  partenze.forEach(({ el }) => { el.style.visibility = ''; });
 }
 
 /** Il pozzetto: le 11 carte entrano in mano una alla volta, non di colpo. */
@@ -601,19 +728,31 @@ async function turnoComputer(p) {
 
   say(`${G.names[p]} pesca…`);
   render();
-  await sleep(420);
+  await sleep(320);
+  const daMazzo = rett(elMazzo()), daScarti = rett(elScarti()), alPosto = rett(elPosto(p));
+  const primaScarti = G.discard.length;
   E.aiDraw(G, p);
+  const dalMonte = G.discard.length < primaScarti;
+  const quante = dalMonte ? Math.min(primaScarti, 5) : 1;
+  await vola(Array.from({ length: quante }, () => ({
+    html: backHTML(), da: dalMonte ? daScarti : daMazzo, a: alPosto,
+  })), 280);
   render();
-  await sleep(430);
+  await sleep(240);
 
   let guard = 0;
   while (guard++ < 45) {
     const prima = G.teams[squadra].pozzetto;
+    const dalPosto = rett(elPosto(p));
+    const aiGiochi = postoIn(elGiochiDi(1 - HUMAN === G.teamOf[p] ? 1 : G.teamOf[p]));
     const mossa = E.aiOneMeld(G, p);
     if (!mossa) break;
     say(mossa.t === 'add' ? `${G.names[p]} attacca una carta` : `${G.names[p]} cala ${mossa.n} carte`);
+    await vola(Array.from({ length: Math.min(mossa.n, 5) }, () => ({
+      html: backHTML(), da: dalPosto, a: aiGiochi,
+    })), 260);
     render();
-    await sleep(380);
+    await sleep(240);
     await controllaPozzetto(prima);
     if (G.handOver) return;
   }
@@ -621,11 +760,14 @@ async function turnoComputer(p) {
 
   say(`${G.names[p]} scarta…`);
   render();
-  await sleep(300);
+  await sleep(260);
   const prima = G.teams[squadra].pozzetto;
+  const daMano = rett(elPosto(p)), alMonte = rett(elScarti());
   E.aiDiscard(G, p);
+  // la carta scartata è quella in cima al monte: ora si può mostrare scoperta
+  await vola([{ html: cardHTML(G.discard[0]), da: daMano, a: alMonte }], 280);
   render();
-  await sleep(320);
+  await sleep(200);
   await controllaPozzetto(prima);
 }
 
@@ -854,6 +996,21 @@ function punteggioDialog() {
   $('m-ok').onclick = closeModal;
 }
 
+function scartiDialog() {
+  if (!G.discard.length) return;
+  // la più recente è in cima al monte: qui si legge dall'alto in basso
+  const carte = G.discard.map((c, i) => `
+    <div class="riga-scarto">
+      <span class="n">${i === 0 ? 'cima' : i + 1 + '\u00ba'}</span>
+      ${cardHTML(c)}
+      <span class="nome">${E.cardLabel(c)}</span>
+    </div>`).join('');
+  modal('Monte scarti', `${G.discard.length} ${G.discard.length === 1 ? 'carta' : 'carte'}, dalla più recente`,
+    `<div class="elenco-scarti">${carte}</div>`,
+    `<button class="btn primary" id="m-ok">Chiudi</button>`);
+  $('m-ok').onclick = closeModal;
+}
+
 function rulesDialog() {
   modal('Regolamento ufficiale', 'Burraco italiano, per articoli del codice di gara.', RULES_HTML,
     `<button class="btn primary" id="m-ok">Chiudi</button>`);
@@ -868,21 +1025,15 @@ window.addEventListener('resize', () => {
   clearTimeout(ridisegno);
   ridisegno = setTimeout(() => { if (G) render(); }, 150);
 });
-$('btn-rules').onclick = rulesDialog;
-$('btn-score').onclick = punteggioDialog;
-$('btn-new').onclick = newGameDialog;
 function cambiaTema() {
   const cur = document.documentElement.getAttribute('data-theme');
   const next = cur === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
   try { localStorage.setItem('burraco.tema', next); } catch (e) { }
 }
-$('btn-theme').onclick = cambiaTema;
-$('btn-menu').onclick = menuDialog;
 const savedTheme = loadTheme();
 if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
 
-$('subtitle').textContent = 'Regole ufficiali italiane · contro il computer';
 G = load();
 if (G) {
   // partita ripresa: niente distribuzione, si riparte da dov'era

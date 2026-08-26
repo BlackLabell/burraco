@@ -66,23 +66,29 @@ button{font:inherit; color:inherit}
    le fasce dei giochi calati e la colonna laterale. */
 html, body{height:100%; overflow:hidden}
 .wrap{
-  height:100dvh; max-width:1680px; margin:0 auto;
-  padding:12px 14px 14px; display:flex; flex-direction:column; gap:10px;
+  height:100dvh; max-width:430px; margin:0 auto;
+  padding:8px; display:flex; flex-direction:column; gap:0;
 }
 .layout{flex:1 1 auto; min-height:0}
-.board{height:100%; min-height:0}
 
 /* Il tavolo: il campo da gioco a sinistra, la colonna dei mazzi di fianco.
    Prima i mazzi stavano in una fascia in mezzo e mangiavano altezza a tutti
    e due i giochi calati; di lato non tolgono niente. */
-.tavolo{display:flex; height:100%; min-height:0}
+/* il tavolo vero e proprio; la mano sta sotto e si prende tutta la larghezza,
+   perché la colonna dei mazzi lì non serve a niente */
+.tavolo{display:flex; flex:1 1 auto; min-height:0}
 .campo{flex:1 1 auto; min-width:0; min-height:0; display:flex; flex-direction:column}
 .mazzi{
-  flex:0 0 auto; display:grid; grid-template-columns:auto auto;
-  align-content:center; justify-content:center; gap:16px 14px;
-  padding:10px 14px; border-left:1px solid var(--felt-line);
+  flex:0 0 auto; display:flex; flex-direction:column;
+  align-items:center; justify-content:space-between; gap:10px;
+  padding:8px 10px; border-left:1px solid var(--felt-line);
   background:var(--felt-hole);
 }
+/* tallone e scarti sono i due che si toccano a ogni turno: ben staccati,
+   perché sbagliare mazzo costa il turno */
+.mazzi .pile[data-act="stock"]{margin-top:auto}
+.mazzi .pile.scartiera{margin-bottom:auto}
+.mazzi .pile[data-act="stock"] + .pile.scartiera{margin-top:22px}
 .posto-lato{
   flex:0 0 auto; display:flex; align-items:center; padding:0 8px;
   border-left:1px solid var(--felt-line);
@@ -143,6 +149,7 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 
 /* ── Il tavolo ─────────────────────────────────────────────── */
 .board{
+  height:100%; min-height:0;
   padding:0; color:var(--felt-ink);
   background:var(--felt-2);
   background-image:
@@ -211,14 +218,17 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
   position:absolute; top:4%; left:6%;
   display:flex; flex-direction:column; align-items:center; line-height:.94;
 }
-.card .idx b{font-size:calc(var(--cw,56px)*.30); font-weight:700; letter-spacing:-.02em}
+.card .idx b{font-size:calc(var(--cw,56px)*.27); font-weight:700; letter-spacing:-.02em}
 /* il 10 è l'unico indice a due cifre: va stretto, perché nel ventaglio di
    ogni carta si vede solo la striscia di sinistra e lì dev'esserci tutto */
 .card.dieci .idx{align-items:flex-start; left:5%}
-.card.dieci .idx b{font-size:calc(var(--cw,56px)*.25); letter-spacing:-.09em}
+.card.dieci .idx b{font-size:calc(var(--cw,56px)*.23); letter-spacing:-.1em}
 .card.dieci .idx.giu{left:auto; align-items:flex-end}
-.card .idx i{font-style:normal; font-size:calc(var(--cw,56px)*.25); margin-top:calc(var(--cw,56px)*.01)}
+.card .idx i{font-style:normal; font-size:calc(var(--cw,56px)*.21); margin-top:0}
 .card .idx.giu{top:auto; left:auto; bottom:4%; right:6%; transform:rotate(180deg)}
+/* sulle carte a semi disposti l'indice capovolto cadeva in mezzo ai semi e
+   sembrava una carta sbagliata: lì basta l'indice in alto */
+.card.apip .idx.giu{display:none}
 /* segno grande al centro */
 .card .mid{
   position:absolute; inset:0; display:flex; flex-direction:column;
@@ -238,7 +248,7 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 .modal .card .mid .pip:not(.asso){display:none}
 .card .mid .semi i{
   position:absolute; font-style:normal; line-height:1;
-  font-size:calc(var(--cw,56px)*.215);
+  font-size:calc(var(--cw,56px)*.19);
 }
 /* Figure: la lettera grande, senza cornice. Nel ventaglio si vede solo una
    striscia di carta e mezza cornice sembrava un errore; mezza lettera no. */
@@ -285,6 +295,21 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 /* riordino con trascinamento */
 .hand .card.dragging{opacity:.28; cursor:grabbing}
 .hand .card.gap-before{margin-left:26px}
+/* le carte in volo da una zona all'altra del tavolo */
+.card.in-volo{
+  position:fixed; z-index:70; pointer-events:none; margin:0 !important;
+  transform-origin:top left;
+  box-shadow:0 12px 26px rgba(0,0,0,.45);
+  animation-name:volo; animation-timing-function:cubic-bezier(.32,.72,.3,1);
+  animation-fill-mode:both;
+}
+@keyframes volo{
+  from{transform:translate(0,0) scale(1); opacity:1}
+  85%{opacity:1}
+  to{transform:translate(var(--dx),var(--dy)) scale(var(--sc)); opacity:.85}
+}
+@media (prefers-reduced-motion:reduce){ .card.in-volo{display:none} }
+
 .card.ghost{
   position:fixed; z-index:60; pointer-events:none; margin:0 !important;
   transform:translate(-50%,-50%) rotate(-3deg) scale(1.08);
@@ -324,6 +349,9 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
    carta si vede solo la striscia con valore e seme, scritti di fianco invece
    che uno sotto l'altro. Striscia più bassa = carte più grandi a parità di posto. */
 .meld .col .card + .card{margin-top:calc(var(--cw) * -0.98)}
+/* le carte in mezzo a un gioco lungo si stringono: resta scoperto solo il filo
+   della carta, quanto basta a contarle e a vedere dove sta la matta */
+.meld .col .card.stretta{margin-top:calc(var(--cw) * -1.26)}
 .meld .card .idx{
   flex-direction:row; align-items:center; gap:calc(var(--cw) * .05);
   left:9%; top:7%;
@@ -334,14 +362,16 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 .meld .card.dieci .idx i{font-size:calc(var(--cw) * .34)}
 .meld .card .idx.giu, .meld .card .mid{display:none}
 .meld .col .card:last-child .mid{display:flex}
-.meld .col .card:last-child .idx.giu{display:flex}
 
 /* un burraco si vede dal bordo in ottone e dai punti, senza scriverlo */
 .meld.burraco{border-color:var(--accent-2); box-shadow:0 0 0 1px var(--accent-2)}
 .meld.burraco.pulito{border-color:#7FD3A5; box-shadow:0 0 0 1px #7FD3A5}
 .meld .punti{
-  position:absolute; top:2px; right:4px; z-index:2;
-  font-size:11px; font-weight:700; line-height:1;
+  /* in fondo a destra, dove la carta è vuota: in cima copriva il primo valore */
+  position:absolute; bottom:2px; right:2px; z-index:2;
+  font-size:9.5px; font-weight:700; line-height:1;
+  padding:1px 4px; border-radius:999px; background:var(--felt-rim);
+  border:1px solid currentColor;
   color:var(--accent-2); font-variant-numeric:tabular-nums;
 }
 .meld.pulito .punti{color:#7FD3A5}
@@ -360,6 +390,8 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 .pile .cap b{display:block; font-size:15px; letter-spacing:0; color:var(--felt-ink); font-variant-numeric:tabular-nums}
 .pile.click .cap{color:var(--accent-2)}
 .pile.click{cursor:pointer}
+/* pressione lunga sul monte: niente selezione del testo né menu del browser */
+.pile.scartiera{-webkit-touch-callout:none; touch-action:manipulation}
 .pile.click .card, .pile.click .slot{transition:transform .13s, box-shadow .13s}
 .pile.click:hover .card, .pile.click:hover .slot{transform:translateY(-5px); box-shadow:0 7px 15px var(--shadow)}
 .pile.dim{opacity:.4}
@@ -376,14 +408,21 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
   background:rgba(255,255,255,.05);
   box-shadow:inset 0 1px 0 var(--accent-2), inset 0 -1px 0 rgba(255,255,255,.06);
 }
-.board.turno .hand{--cw:76px}
+.board.turno .hand{--cw:68px}
 .board:not(.turno) .hand{opacity:.68}
 .board:not(.turno) .hand .card{cursor:default}
-@media (max-width:600px){ .board.turno .hand{--cw:62px} }
 
-.zone.posti{display:flex; align-items:center; gap:16px; flex-wrap:wrap}
-.zone.posti .seats{flex:0 0 auto; justify-content:flex-start}
-.zone.posti .state{margin-left:auto; text-align:right}
+.zone.posti{display:flex; align-items:center; gap:10px; flex-wrap:nowrap}
+.zone.posti .seats{flex:0 1 auto; min-width:0; justify-content:flex-start}
+/* nome e numero bastano: la parola "carte" si capisce da sola */
+.zone.posti .who .unita{display:none}
+/* quando lo spazio manca si accorcia prima il ventaglio di dorsi, poi il nome:
+   il suggerimento del turno non deve mai finirci sopra */
+.zone.posti{overflow:hidden}
+.zone.posti .seat{min-width:0}
+.zone.posti .seat .fan{flex:0 1 auto; min-width:calc(var(--cw) * 1.6); overflow:hidden}
+.zone.posti .seat .who{flex:0 0 auto; white-space:nowrap}
+.zone.posti .state{flex:0 1 auto; margin-left:auto; text-align:right; min-width:0}
 .state{display:flex; flex-direction:column; align-items:flex-end; padding:0}
 .state .now{font-family:"Bodoni Moda",Georgia,serif; font-size:17px; line-height:1.15; color:var(--felt-ink)}
 .state .step{font-size:12.5px; color:var(--felt-soft)}
@@ -391,17 +430,7 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 .state li{font-size:11.5px; color:var(--felt-soft); opacity:.8; display:flex; gap:6px; align-items:baseline}
 .state li i{font-style:normal; width:11px}
 .state li.done{color:#7FD3A5; opacity:1}
-@media (max-width:600px){
-  .state{min-width:0; justify-content:center}
-  .scarti .card + .card{margin-left:calc(var(--cw) * -0.74)}
-  .pile{--cw:50px}
-  .hand{--cw:56px; gap:4px}
-  .zone{padding:11px 11px}
-  .seats{gap:12px}
-  .seat .fan{--cw:26px}
-  .seat .fan .card + .card{margin-left:-16px}
-  .board{border-width:4px}
-}
+
 .slot{
   width:var(--cw); height:calc(var(--cw)*1.42); border:1px dashed var(--felt-line);
   border-radius:4px; background:rgba(0,0,0,.16);
@@ -429,7 +458,9 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 .hint.err{color:#F0A79E}
 /* intestazione della mano: il pulsante dell'ordine sta qui, non nella riga sotto */
 .seat-label.mano-h{align-items:center; margin-bottom:6px}
-.seat-label.mano-h .btn.mini{margin-left:auto}
+.seat-label.mano-h .btn.mini[data-a="sort"]{margin-left:auto}
+.seat-label.mano-h .btn.mini{flex:0 0 auto}
+.seat-label.mano-h .btn.mini[data-a="menu"]{font-size:14px; line-height:1; padding:2px 8px}
 .btn.mini{padding:3px 10px; font-size:11.5px; border-color:var(--felt-line); color:var(--felt-soft); background:transparent}
 .btn.mini:hover:not(:disabled){border-color:var(--accent-2); color:var(--felt-ink); background:rgba(0,0,0,.2)}
 
@@ -459,6 +490,21 @@ details.rules summary{cursor:pointer; padding:10px 0; font-size:13px; font-weigh
 details.rules p, details.rules li{font-size:12.5px; color:var(--ink-soft); margin:5px 0}
 details.rules ul{padding-left:16px; margin:6px 0}
 details.rules b{color:var(--ink)}
+
+/* elenco del monte scarti (pressione lunga sul monte) */
+.elenco-scarti{display:flex; flex-direction:column; gap:2px; max-height:60vh; overflow-y:auto}
+.riga-scarto{
+  display:flex; align-items:center; gap:10px; --cw:30px;
+  padding:3px 2px; border-bottom:1px solid var(--edge);
+}
+.riga-scarto:last-child{border-bottom:none}
+.riga-scarto .n{
+  width:4.5ch; flex:0 0 auto; font-size:11px; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--ink-faint); font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+}
+.riga-scarto .nome{font-size:14px; color:var(--ink)}
+.riga-scarto .card{cursor:default}
 
 /* ── Finestre modali ───────────────────────────────────────── */
 .veil{
@@ -505,163 +551,100 @@ details.rules b{color:var(--ink)}
    ══════════════════════════════════════════════════════════════ */
 .solo-telefono{display:none}
 
-@media (max-width:760px){
-  body{background-attachment:scroll}
+/* ══════════════════════════════════════════════════════════════
+   MISURE — pensate per il telefono, che è dove si gioca davvero.
+   Su schermo largo la stessa pianta resta in una colonna centrata:
+   la versione per computer sarà un'altra, disegnata a parte.
+   ══════════════════════════════════════════════════════════════ */
+body{background-attachment:scroll}
 
-  .wrap{
-    max-width:none; margin:0;
-    padding:calc(6px + env(safe-area-inset-top)) 7px calc(6px + env(safe-area-inset-bottom));
-    gap:6px;
-  }
-
-  /* testata sottile: titolo piccolo, pulsanti compatti */
-  header.top{flex:0 0 auto; align-items:center; gap:8px; flex-wrap:nowrap}
-  .brand h1{font-size:19px; white-space:nowrap}
-  .brand p{display:none}
-  .top-actions{gap:6px; flex-wrap:nowrap; flex:0 0 auto}
-  .btn{padding:6px 10px; font-size:12px}
-  .solo-telefono{display:inline-block}
-  .no-telefono{display:none}
-  #btn-menu{font-size:16px; line-height:1; padding:5px 10px}
-  .brand{min-width:0; overflow:hidden}
-
-  /* il tavolo prende tutto lo spazio che resta */
-  .layout{flex:1 1 auto; min-height:0; display:block}
-  .board{height:100%; border-width:3px; border-radius:8px}
-
-  .zone{padding:7px 9px}
-  .seat-label{margin-bottom:5px; font-size:9.5px; letter-spacing:.12em}
-  .seat-label b{font-size:12px}
-  .chip{font-size:9px; padding:1px 6px}
-
-  /* le fasce dei giochi si prendono tutto lo spazio che avanza; le carte si
-     adattano da sole (adattaGiochi) e vanno a capo come sul computer */
-  .zone.giochi{min-height:62px}
-  .zone.giochi .melds{gap:6px}
-  .meld{padding:3px 5px}
-
-  .seat{gap:9px}
-  .seat .fan{--cw:30px; padding-top:0}
-  .seat .fan .card + .card{margin-left:-19px}
-  .seat .who{font-size:11px; text-align:left}
-
-  /* a croce, ai lati del tavolo c'è poco spazio: solo nome e numero */
-  .posto-lato{padding:0 3px}
-  .posto-lato .seat{gap:3px}
-  .posto-lato .fan{--cw:24px}
-  .posto-lato .fan .card + .card{margin-top:calc(var(--cw) * -1.2)}
-  .posto-lato .who{font-size:9px; line-height:1.15; max-width:5ch; white-space:normal}
-  .posto-lato .who .unita{display:none}
-  .posto-lato .who .sep{display:block; height:0; overflow:hidden}
-
-  /* la colonna dei mazzi, stretta, di fianco al campo */
-  .mazzi{grid-template-columns:auto; gap:10px; padding:6px 4px}
-  .pile{gap:4px}
-  .mazzi .pile{--cw:40px}
-  .mazzi .pile.pozzetto{--cw:28px}
-  .mazzi .pile .cap{font-size:7.5px; letter-spacing:.04em; max-width:7ch}
-  .mazzi .pile .cap b{font-size:11px}
-  .pilewrap .count{right:-5px; bottom:-5px; min-width:18px; font-size:9.5px; padding:0 4px}
-  .pile .cap{font-size:9px; letter-spacing:.08em}
-  .pile .cap b{font-size:13px}
-  .state .now{font-size:16px}
-  .scarti .card + .card{margin-left:calc(var(--cw) * -0.80)}
-  .pile .cap{white-space:nowrap}
-  .pilewrap .count{right:-5px; bottom:-5px; min-width:19px; font-size:10px}
-
-  /* la mano: carte grandi, circa un quinto della larghezza dello schermo */
-  .hand{justify-content:center; padding:2px 0 0; --cw:70px}
-  .hand .card.sel{z-index:5; transform:translateY(-14px)}
-  .board.turno .hand{--cw:76px}
-
-  .state .hint{font-size:10.5px; max-width:24ch; margin-top:1px}
-  .state .now{font-size:14px}
-  .zone.posti{gap:8px}
-  /* i semi disegnati si leggono in mano, non su mazzi da 42 px */
-  .pile .card .mid .semi{display:none}
-  .pile .card .mid .pip:not(.asso){display:block}
-
-  .modal{max-height:90vh}
+.wrap{
+  /* su schermo largo la stessa pianta resta in una colonna della larghezza
+     di un telefono, centrata: la versione per computer sarà un'altra */
+  max-width:440px; margin:0 auto;
+  padding:calc(4px + env(safe-area-inset-top)) 5px calc(4px + env(safe-area-inset-bottom));
+  gap:0;
 }
+
+/* testata sottile: titolo piccolo, pulsanti compatti */
+header.top{flex:0 0 auto; align-items:center; gap:8px; flex-wrap:nowrap}
+.brand h1{font-size:19px; white-space:nowrap}
+.brand p{display:none}
+.top-actions{gap:6px; flex-wrap:nowrap; flex:0 0 auto}
+.btn{padding:6px 10px; font-size:12px}
+.solo-telefono{display:inline-block}
+.no-telefono{display:none}
+#btn-menu{font-size:16px; line-height:1; padding:5px 10px}
+.brand{min-width:0; overflow:hidden}
+
+/* il tavolo prende tutto lo spazio che resta */
+.layout{flex:1 1 auto; min-height:0; display:block}
+.board{height:100%; border-width:3px; border-radius:8px}
+
+.zone{padding:7px 9px}
+.seat-label{margin-bottom:5px; font-size:9.5px; letter-spacing:.12em}
+.seat-label b{font-size:12px}
+.chip{font-size:9px; padding:1px 6px}
+
+/* le fasce dei giochi si prendono tutto lo spazio che avanza; le carte si
+   adattano da sole (adattaGiochi) e vanno a capo come sul computer */
+.zone.giochi{min-height:62px}
+.zone.giochi .melds{gap:6px}
+.meld{padding:3px 5px}
+
+.seat{gap:9px}
+.seat .fan{--cw:30px; padding-top:0}
+.seat .fan .card + .card{margin-left:-19px}
+.seat .who{font-size:11px; text-align:left}
+
+/* a croce, ai lati del tavolo c'è poco spazio: solo nome e numero */
+.posto-lato{padding:0 3px}
+.posto-lato .seat{gap:3px}
+.posto-lato .fan{--cw:24px}
+.posto-lato .fan .card + .card{margin-top:calc(var(--cw) * -1.2)}
+.posto-lato .who{font-size:9px; line-height:1.15; max-width:5ch; white-space:normal}
+.posto-lato .who .unita{display:none}
+.posto-lato .who .sep{display:block; height:0; overflow:hidden}
+
+/* la colonna dei mazzi, stretta, di fianco al campo */
+.mazzi{grid-template-columns:auto; gap:10px; padding:6px 4px}
+.pile{gap:4px}
+.mazzi .pile{--cw:40px}
+.mazzi .pile.pozzetto{--cw:28px}
+.mazzi .pile .cap{font-size:7.5px; letter-spacing:.04em; max-width:7ch}
+.mazzi .pile .cap b{font-size:11px}
+.mazzi .pile.dim .cap b{font-size:8px; letter-spacing:.1em; text-transform:uppercase}
+.pilewrap .count{right:-5px; bottom:-5px; min-width:18px; font-size:9.5px; padding:0 4px}
+.pile .cap{font-size:9px; letter-spacing:.08em}
+.pile .cap b{font-size:13px}
+.state .now{font-size:16px}
+.scarti .card + .card{margin-left:calc(var(--cw) * -0.80)}
+.pile .cap{white-space:nowrap}
+.pilewrap .count{right:-5px; bottom:-5px; min-width:19px; font-size:10px}
+
+/* la mano: carte grandi, circa un quinto della larghezza dello schermo */
+.hand{justify-content:center; padding:2px 0 0; --cw:63px}
+.hand .card.sel{z-index:5; transform:translateY(-14px)}
+.board.turno .hand{--cw:68px}
+
+.state .hint{font-size:10.5px; max-width:24ch; margin-top:1px}
+.state .now{font-size:14px}
+.zone.posti{gap:8px}
+/* i semi disegnati si leggono in mano, non su mazzi da 42 px */
+.pile .card .mid .semi{display:none}
+.pile .card .mid .pip:not(.asso){display:block}
+
+.modal{max-height:90vh}
 
 /* schermi molto stretti */
 @media (max-width:400px){
   .brand h1{font-size:17px}
   .btn{padding:5px 7px; font-size:11px}
-  .pile{--cw:40px}
+  .mazzi .pile{--cw:36px}
+  .mazzi .pile.pozzetto{--cw:25px}
   .seat .fan{--cw:27px}
 }
 
-/* ══════════════════════════════════════════════════════════════
-   PC — schermo largo, tutto più grande.
-   Le misure delle carte sono legate a --cw: basta alzarlo e
-   numeri, semi e figure crescono insieme, senza sfocature.
-   ══════════════════════════════════════════════════════════════ */
-@media (min-width:1100px){
-  body{font-size:16.5px}
-  .wrap{max-width:1500px; padding:22px 24px 34px; gap:16px}
-  .layout{grid-template-columns:minmax(0,1fr) 336px; gap:18px}
-
-  .brand p{font-size:12.5px}
-  .btn{padding:9px 17px; font-size:14px}
-
-  .zone{padding:16px 20px}
-  .seat-label{font-size:11.5px}
-  .seat-label b{font-size:15px}
-  .chip{font-size:11px; padding:3px 10px}
-
-  .hand{--cw:74px; gap:8px}
-  .board.turno .hand{--cw:82px}
-  .hand .card.gap-before{margin-left:32px}
-
-  .mazzi .pile{--cw:64px}
-  .mazzi .pile.pozzetto{--cw:46px}
-  .mazzi{gap:20px 16px; padding:12px 18px}
-  .pile .cap{font-size:11.5px}
-  .pile .cap b{font-size:18px}
-  .pilewrap .count{min-width:25px; font-size:12px; padding:2px 6px}
-
-  .seat .fan{--cw:34px}
-  .seat .fan .card + .card{margin-left:-20px}
-  .seat .who{font-size:12.5px}
-  .seats{gap:34px}
-  .posto-lato .fan{--cw:46px}
-
-  .state .now{font-size:22px}
-  .state .step{font-size:14px}
-  .state li{font-size:13px}
-
-  .melds{gap:13px; min-height:92px}
-  .meld{padding:7px 9px 5px}
-  .meld .punti{font-size:12.5px}
-  .melds.zona .placeholder{font-size:14px}
-  .empty-note{font-size:14px}
-
-  .hint{font-size:14.5px}
-
-  .side-h{font-size:17px; padding:12px 15px}
-  .side-h span{font-size:11.5px}
-  .score{padding:15px}
-  .score td{font-size:15.5px}
-  .score td.n{font-size:23px}
-  .log{font-size:13.5px; padding:10px 15px 15px; max-height:290px}
-  details.rules summary{font-size:14.5px}
-  details.rules p, details.rules li{font-size:13.5px}
-}
 
 /* schermi molto larghi: un altro scatto */
-@media (min-width:1560px){
-  body{font-size:17.5px}
-  .wrap{max-width:1720px}
-  .layout{grid-template-columns:minmax(0,1fr) 360px}
-  .hand{--cw:84px; gap:9px}
-  .board.turno .hand{--cw:94px}
-  .mazzi .pile{--cw:74px}
-  .mazzi .pile.pozzetto{--cw:52px}
-  .pile .cap b{font-size:20px}
-  .seat .fan{--cw:48px}
-  .seat .fan .card + .card{margin-left:-29px}
-  .state .now{font-size:25px}
-  .melds{min-height:106px}
-  .zone{padding:19px 24px}
-}
+
