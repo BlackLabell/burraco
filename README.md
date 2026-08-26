@@ -5,7 +5,7 @@
 Burraco italiano contro il computer, uno contro uno o a coppie, con le regole ufficiali.
 Gira nel browser, si installa sul telefono e funziona anche senza connessione.
 
-**Versione pubblicata:** `burraco-v19` — 26 agosto 2026
+**Versione pubblicata:** `burraco-v20` — 26 agosto 2026
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server, nessun account
 a pagamento, nessun dominio da comprare.
 
@@ -22,6 +22,17 @@ a pagamento, nessun dominio da comprare.
 ## Novità
 
 Le voci più recenti stanno in alto. Ogni riga corrisponde a una versione di `sw.js`.
+
+### `burraco-v20` — 26 agosto 2026
+- **Le scale erano al contrario.** Si leggevano dal basso: il tre in cima e l'asso in fondo.
+  Adesso la carta più alta sta sopra, come quando tieni una scala in mano: A, K, Q, J, 10, 9.
+  I tris restano come sono, che tanto è lo stesso valore.
+- **Con la mano piena non si vedevano le ultime carte.** Le carte si sovrapponevano di un terzo
+  fisso, e oltre una quindicina la fila usciva dallo schermo: le ultime finivano fuori.
+  Ora, quando la mano cresce, le carte **rimpiccioliscono** quel tanto che serve a farle stare
+  tutte in una riga — meglio tutte un po' più piccole che le ultime invisibili.
+  Misurato su tre telefoni: 11 carte a 68 px, 16 a 55-64, 22 a 41-48, **28 a 34-38 px**,
+  sempre su una riga sola e sempre dentro lo schermo.
 
 ### `burraco-v19` — 26 agosto 2026
 **Le carte volano.** Prima ogni mossa era un salto: la carta spariva da una parte e compariva
@@ -278,7 +289,7 @@ migliaia di partite. È quello che fanno i test.
 
 1. Cambia il codice.
 2. `npm test` — se un test si rompe, hai toccato una regola.
-3. **Alza `VERSIONE` in `sw.js`** (`burraco-v19` → `burraco-v20`). Senza questo passaggio chi ha
+3. **Alza `VERSIONE` in `sw.js`** (`burraco-v20` → `burraco-v21`). Senza questo passaggio chi ha
    già aperto l'app continua a vedere la versione vecchia presa dalla cache.
 4. Aggiungi una voce in **Novità** qui sopra e aggiorna la versione in cima al file.
 5. Carica su `main`.

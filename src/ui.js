@@ -98,7 +98,10 @@ function slotHTML() { return `<div class="slot"></div>`; }
 
 /** Le scale si posano in verticale, i tris in orizzontale, come sul tavolo vero. */
 function meldHTML(m, clickable) {
-  const n = m.slots.length;
+  /* Le scale si posano con la carta più alta in cima, come si tengono in mano:
+     l'asso di sopra e il tre di sotto. I tris restano nell'ordine che hanno. */
+  const slots = m.type === 'seq' ? [...m.slots].reverse() : m.slots;
+  const n = slots.length;
   /* Un gioco resta sempre in una colonna sola: un burraco spezzato in due non
      si riconosce più. Quando è lungo si comprime, come quando al tavolo stringi
      le carte: si lasciano scoperte solo quelle che servono davvero a leggerlo —
@@ -107,12 +110,12 @@ function meldHTML(m, clickable) {
      in mezzo si sanno già, vanno dalla prima all'ultima. */
   const scoperta = new Array(n).fill(n <= 6);
   scoperta[0] = true;
-  m.slots.forEach((s, i) => {
+  slots.forEach((s, i) => {
     if (!s.wild) return;
     scoperta[i] = true;
     if (i > 0) scoperta[i - 1] = true;
   });
-  const carte = m.slots.map((s, i) => cardHTML(
+  const carte = slots.map((s, i) => cardHTML(
     s.card,
     (s.wild ? 'wild ' : '') + (i > 0 && !scoperta[i - 1] ? 'stretta' : '')
   ));
@@ -279,17 +282,26 @@ function adattaMano() {
   if (!el) return;
   el.classList.remove('ventaglio');
   el.style.removeProperty('--passo');
+  el.style.removeProperty('--cw');
   const n = el.children.length;
   if (n < 2) return;
   // si guarda il risultato vero: se le carte sono finite su più di una riga,
   // allora vanno sovrapposte, qualunque conto si potesse fare prima
-  // offsetTop e non getBoundingClientRect: durante l'animazione di distribuzione
-  // le carte sono spostate da una trasformazione, ma la riga vera è una sola
   const righe = new Set([...el.children].map(c => c.offsetTop));
   if (righe.size <= 1) return;
-  const cw = el.firstElementChild.getBoundingClientRect().width;
+
   const spazio = el.clientWidth;
-  const passo = Math.max(cw * 0.30, (spazio - cw) / (n - 1));
+  let cw = el.firstElementChild.getBoundingClientRect().width;
+  /* Di ogni carta deve restare scoperta almeno una striscia larga un terzo:
+     meno di così l'indice non ci sta e la carta non si riconosce. Se con la
+     mano piena non basta la larghezza, le carte rimpiccioliscono — meglio
+     tutte un po' più piccole che le ultime fuori dallo schermo. */
+  const MIN = 0.34;
+  if (cw + (n - 1) * cw * MIN > spazio) {
+    cw = Math.max(34, Math.floor(spazio / (1 + (n - 1) * MIN)));
+    el.style.setProperty('--cw', cw + 'px');
+  }
+  const passo = Math.max(cw * MIN, (spazio - cw) / (n - 1));
   el.classList.add('ventaglio');
   el.style.setProperty('--passo', passo.toFixed(1) + 'px');
 }
