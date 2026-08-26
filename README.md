@@ -1,6 +1,6 @@
 # Tavolo da Burraco
 
-### ▶ [Apri l'app — blacklabell.github.io/test](https://blacklabell.github.io/test/)
+### ▶ [Apri l'app — blacklabell.github.io/burraco](https://blacklabell.github.io/burraco/)
 
 Burraco italiano contro il computer, uno contro uno o a coppie, con le regole ufficiali.
 Gira nel browser, si installa sul telefono e funziona anche senza connessione.
@@ -9,6 +9,10 @@ Gira nel browser, si installa sul telefono e funziona anche senza connessione.
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server, nessun account
 a pagamento, nessun dominio da comprare.
 
+> **Il repository si chiamava `test`** ed è stato rinominato `burraco`: il vecchio indirizzo
+> `blacklabell.github.io/test/` non è più quello buono. Se hai l'icona sul telefono, toglila e
+> reinstallala dal nuovo indirizzo: quella vecchia continuerebbe a mostrarti la copia salvata.
+>
 > **Vedi la versione vecchia?** L'app si salva sul dispositivo per funzionare offline.
 > Ricarica tenendo premuto il pulsante di ricarica (su telefono: chiudi e riapri la scheda).
 > Il numero di versione qui sopra deve corrispondere a quello scritto in `sw.js`.
@@ -165,7 +169,7 @@ repository, commit, ramo, pull request, merge e Pages, con questo repository com
 
 ## Installarla sul telefono
 
-Apri [il sito](https://blacklabell.github.io/test/) e poi:
+Apri [il sito](https://blacklabell.github.io/burraco/) e poi:
 
 - **Android / Chrome:** menu ⋮ → *Aggiungi a schermata Home*
 - **iPhone / Safari:** *Condividi* → *Aggiungi alla schermata Home*
