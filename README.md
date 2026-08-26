@@ -5,7 +5,7 @@
 Burraco italiano contro il computer, uno contro uno o a coppie, con le regole ufficiali.
 Gira nel browser, si installa sul telefono e funziona anche senza connessione.
 
-**Versione pubblicata:** `burraco-v11` — 25 agosto 2026
+**Versione pubblicata:** `burraco-v13` — 26 agosto 2026
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server, nessun account
 a pagamento, nessun dominio da comprare.
 
@@ -18,6 +18,26 @@ a pagamento, nessun dominio da comprare.
 ## Novità
 
 Le voci più recenti stanno in alto. Ogni riga corrisponde a una versione di `sw.js`.
+
+### `burraco-v13` — 26 agosto 2026
+- **Una schermata sola anche da computer.** Il tavolo sta dentro l'altezza della finestra a
+  qualsiasi misura: non si scorre più né da telefono né da PC. Scorrono, se proprio serve,
+  solo la colonna laterale e le fasce dei giochi.
+- **Giochi calati molto più grandi.** Di ogni carta si vede la striscia con valore e seme
+  scritti di fianco invece che uno sotto l'altro: la striscia è più bassa, quindi a parità di
+  spazio le carte sono quasi il doppio. Le scale lunghe si spezzano in **due colonne
+  affiancate**, come quando al tavolo si allarga il gioco.
+- **La fascia dei vostri giochi è la più grande del tavolo** e le due fasce si contendono
+  l'altezza: quando una rimpicciolisce l'altra guadagna, e le carte si riadattano da sole.
+- **Via la riga dei pulsanti sotto la mano.** Si cala cliccando la zona dei vostri giochi e si
+  scarta cliccando il monte scarti — che è già il modo normale di giocare.
+- **Meno scritte:** le fasce si chiamano *Loro* e *Voi*, l'intestazione della mano è il solo
+  numero di carte, e i pozzetti sono più piccoli del tallone perché si guardano una volta a mano.
+
+### `burraco-v12` — 25 agosto 2026
+- **Quattro giocatori a croce** nella partita a coppie: Nord è il tuo compagno, in alto; Est e
+  Ovest sono gli avversari, ai lati del tallone, con la mano di taglio; tu a Sud, in basso.
+  Come al tavolo vero.
 
 ### `burraco-v11` — 25 agosto 2026
 - **Carte a semi veri.** In mano, sui mazzi e nelle finestre i semi sono disposti come sulle
@@ -73,7 +93,6 @@ Le voci più recenti stanno in alto. Ogni riga corrisponde a una versione di `sw
 
 ## Da fare
 
-- Partita a coppie con i **quattro giocatori a croce**.
 - Animazioni anche per la pescata singola e per la calata.
 - **Gioco online** con altre persone.
 
@@ -155,7 +174,7 @@ migliaia di partite. È quello che fanno i test.
 
 1. Cambia il codice.
 2. `npm test` — se un test si rompe, hai toccato una regola.
-3. **Alza `VERSIONE` in `sw.js`** (`burraco-v11` → `burraco-v12`). Senza questo passaggio chi ha
+3. **Alza `VERSIONE` in `sw.js`** (`burraco-v13` → `burraco-v14`). Senza questo passaggio chi ha
    già aperto l'app continua a vedere la versione vecchia presa dalla cache.
 4. Aggiungi una voce in **Novità** qui sopra e aggiorna la versione in cima al file.
 5. Carica su `main`.

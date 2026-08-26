@@ -97,7 +97,13 @@ function slotHTML() { return `<div class="slot"></div>`; }
 
 /** Le scale si posano in verticale, i tris in orizzontale, come sul tavolo vero. */
 function meldHTML(m, clickable) {
-  const cards = m.slots.map(s => cardHTML(s.card, s.wild ? 'wild' : '')).join('');
+  const carte = m.slots.map(s => cardHTML(s.card, s.wild ? 'wild' : ''));
+  // una scala lunga in colonna unica diventa altissima: si spezza in due
+  // colonne affiancate, come quando al tavolo si allarga il gioco
+  const taglio = carte.length >= 8 ? Math.ceil(carte.length / 2) : carte.length;
+  const cards = [carte.slice(0, taglio), carte.slice(taglio)]
+    .filter(c => c.length)
+    .map(c => `<div class="col">${c.join('')}</div>`).join('');
   const b = E.burracoType(m);
   const classi = [
     'meld',
@@ -159,7 +165,7 @@ function seatHTML(p) {
   }
   return `<div class="seat ${gioca ? 'now' : ''}">
     <div class="fan ${n ? '' : 'empty'}">${fan}</div>
-    <div class="who"><b>${G.names[p]}</b> · ${n} ${n === 1 ? 'carta' : 'carte'}${gioca ? ' · gioca' : ''}</div>
+    <div class="who"><b>${G.names[p]}</b><span class="sep"> · </span>${n}<span class="unita"> ${n === 1 ? 'carta' : 'carte'}</span>${gioca ? '<span class="unita"> · gioca</span>' : ''}</div>
   </div>`;
 }
 function seatsOf(team) {
@@ -190,18 +196,25 @@ function meldsHTML(team, clickable) {
 }
 
 /**
- * Mano a ventaglio: con lo schermo stretto le carte si sovrappongono quel tanto
- * che basta a stare tutte in una riga, come le tieni davvero in mano.
+ * Mano a ventaglio: se le carte non stanno tutte in una riga si sovrappongono
+ * quel tanto che basta, come quando le tieni davvero in mano. Vale a ogni
+ * misura di schermo: la mano non va mai a capo e non fa scorrere la pagina.
+ * Si misura dopo aver disegnato, perché solo il browser sa quanto spazio c'è.
  */
-function ventaglio(n) {
-  const stretto = window.innerWidth < 760;
-  if (!stretto || n < 2) return { cls: '', css: '' };
-  // le carte in mano sono la cosa che si guarda di più: circa un quinto
-  // della larghezza dello schermo, come nei giochi di carte fatti bene
-  const cw = Math.max(58, Math.min(84, Math.round(window.innerWidth * 0.195)));
-  const spazio = window.innerWidth - 24;          // margini della fascia
-  const passo = Math.min(cw + 5, Math.max(cw * 0.34, (spazio - cw) / (n - 1)));
-  return { cls: 'ventaglio', css: `--cw:${cw}px; --passo:${passo.toFixed(1)}px` };
+function adattaMano() {
+  const el = $('hand');
+  if (!el) return;
+  el.classList.remove('ventaglio');
+  el.style.removeProperty('--passo');
+  const n = el.children.length;
+  if (n < 2) return;
+  const cw = el.firstElementChild.getBoundingClientRect().width;
+  const spazio = el.clientWidth;
+  const gap = parseFloat(getComputedStyle(el).columnGap) || 0;
+  if (n * cw + (n - 1) * gap <= spazio) return;
+  const passo = Math.max(cw * 0.30, (spazio - cw) / (n - 1));
+  el.classList.add('ventaglio');
+  el.style.setProperty('--passo', passo.toFixed(1) + 'px');
 }
 
 function render() {
@@ -289,45 +302,44 @@ function render() {
   if (dealCount !== null) mano = mano.slice(0, dealCount);
   if (pozzettoAnim && pozzettoAnim.p === HUMAN) mano = mano.slice(0, pozzettoAnim.n);
   const hand = mano.map((c, i) => cardHTML(c, sel.has(c.id) ? 'sel' : '', i)).join('');
-  // su schermo stretto le carte si sovrappongono come quando le tieni in mano:
-  // il passo si calcola sulla larghezza disponibile, così stanno in una riga sola
-  const stile = ventaglio(mano.length);
 
   /* — azioni — */
-  const canMeld = calataValida;
-  const canDiscard = scartaQui;
 
   const nMano = G.hands[HUMAN].length;
-  $('board').className = 'panel board' + (myTurn && dealCount === null ? ' turno' : '');
+  // a coppie i quattro posti stanno a croce: Nord è il compagno, Est e Ovest
+  // gli avversari ai lati del tavolo, tu a Sud con la mano in basso
+  const croce = G.mode === '2v2';
+  $('board').className = 'panel board' + (croce ? ' croce4' : '') + (myTurn && dealCount === null ? ' turno' : '');
   $('board').innerHTML = `
     <section class="zone posti">
-      <div class="seat-label">${G.mode === '2v2' ? 'Avversari' : 'Avversario'} ${teamChips(1)}</div>
-      <div class="seats">${seatsOf(1)}</div>
+      <div class="seats">${croce ? seatHTML(2) : seatsOf(1)}</div>
     </section>
     <section class="zone giochi">
-      <div class="seat-label">I loro giochi</div>
+      <div class="seat-label">Loro ${teamChips(1)}</div>
       <div class="melds" style="--cw:${oppM.cw}px">${oppMelds}</div>
     </section>
 
-    <section class="zone mid"><div class="center">${center}</div></section>
+    <section class="zone mid">${croce
+      ? `<div class="croce">
+           <div class="lato">${seatHTML(3)}</div>
+           <div class="center">${center}</div>
+           <div class="lato">${seatHTML(1)}</div>
+         </div>`
+      : `<div class="center">${center}</div>`}</section>
 
-    <section class="zone giochi">
-      <div class="seat-label">I vostri giochi ${teamChips(0)}</div>
+    <section class="zone giochi mia">
+      <div class="seat-label">Voi ${teamChips(0)}</div>
       <div class="melds zona ${calataValida ? 'armata' : ''}" id="my-melds" style="--cw:${myM.cw}px">${myMelds}</div>
-      ${G.mode === '2v2' ? `<div class="seats" style="margin-top:12px">${seatsOf(0)}</div>` : ''}
     </section>
 
     <section class="zone mano">
-      <div class="seat-label mano-h">La tua mano <b>${nMano} ${nMano === 1 ? 'carta' : 'carte'}</b>
+      <div class="seat-label mano-h"><b>${nMano} ${nMano === 1 ? 'carta' : 'carte'}</b>
         ${sel.size ? `<span class="chip on">${sel.size} scelte</span>` : ''}
         <button class="btn ghost mini" data-a="sort" title="Cambia l'ordine della mano">Per ${sortMode === 'rank' ? 'seme' : 'valore'}</button></div>
-      <div class="hand ${dealing ? 'deal' : ''} ${stile.cls}" id="hand" style="${stile.css}">${hand}</div>
-      <div class="actions">
-        <button class="btn primary" data-a="meld" ${canMeld ? '' : 'disabled'}>Cala</button>
-        <button class="btn" data-a="discard" ${canDiscard ? '' : 'disabled'}>Scarta</button>
-      </div>
+      <div class="hand ${dealing ? 'deal' : ''}" id="hand">${hand}</div>
     </section>`;
 
+  adattaMano();
   adattaGiochi();
   renderScore();
   renderLog();
@@ -339,15 +351,25 @@ function render() {
  * Si misura dopo aver disegnato, perché solo il browser sa quanto spazio c'è.
  */
 function adattaGiochi() {
-  for (const el of document.querySelectorAll('.zone.giochi .melds')) {
-    const st = getComputedStyle(el);
-    const spazio = el.clientHeight - parseFloat(st.paddingTop) - parseFloat(st.paddingBottom);
-    if (spazio <= 0) continue;
-    let piuAlto = 0;
-    for (const m of el.children) piuAlto = Math.max(piuAlto, m.offsetHeight);
-    if (piuAlto <= spazio) continue;
-    const cw = parseFloat(el.style.getPropertyValue('--cw')) || 44;
-    el.style.setProperty('--cw', Math.max(16, Math.floor(cw * (spazio - 2) / piuAlto)) + 'px');
+  const fasce = [...document.querySelectorAll('.zone.giochi .melds')];
+  const tetto = fasce.map(el => parseFloat(el.style.getPropertyValue('--cw')) || 44);
+  // le due fasce si contendono l'altezza: quando una rimpicciolisce l'altra
+  // guadagna spazio, quindi si ripassa finché le misure non si assestano
+  for (let giro = 0; giro < 5; giro++) {
+    let cambiato = false;
+    fasce.forEach((el, i) => {
+      const st = getComputedStyle(el);
+      const spazio = el.clientHeight - parseFloat(st.paddingTop) - parseFloat(st.paddingBottom);
+      if (spazio <= 0) return;
+      let piuAlto = 0;
+      for (const m of el.children) piuAlto = Math.max(piuAlto, m.offsetHeight);
+      if (!piuAlto) return;
+      const cw = parseFloat(el.style.getPropertyValue('--cw')) || tetto[i];
+      // mai più grandi del previsto, mai sotto la misura in cui non si leggono
+      const nuovo = Math.min(tetto[i], Math.max(24, Math.floor(cw * (spazio - 2) / piuAlto)));
+      if (Math.abs(nuovo - cw) >= 1) { el.style.setProperty('--cw', nuovo + 'px'); cambiato = true; }
+    });
+    if (!cambiato) break;
   }
 }
 
@@ -900,4 +922,9 @@ window.__burraco = {
   turnoIA: () => E.aiTurn(G, G.turn),
   sbloccaIA: () => { busy = false; },
   fineMano: () => finishHand(),
+  nuovaPartita: (mode, target) => {
+    G = E.newGame(mode, { target: target || 2005 });
+    sel.clear(); msg = ''; dealing = false; lastLogLen = -1; handOrder = [];
+    busy = false; dealCount = null; render();
+  },
 };
