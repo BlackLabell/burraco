@@ -186,12 +186,10 @@ function meldsHTML(team, clickable) {
     if (a.type !== b.type) return a.type === 'set' ? -1 : 1;
     return (a.type === 'set' ? a.rank : a.lo) - (b.type === 'set' ? b.rank : b.lo);
   });
-  const carte = melds.reduce((s, m) => s + m.slots.length, 0);
+  // Misura di partenza generosa: tanto è adattaGiochi() a cercare, misurando,
+  // la più grande che ci sta davvero nella fascia. Qui si dice solo "non oltre".
   const w = window.innerWidth;
-  let cw = carte <= 14 ? 44 : carte <= 24 ? 39 : carte <= 34 ? 34 : carte <= 46 ? 30 : 27;
-  // stretto: si rimpicciolisce per starci; largo: si ingrandisce perché c'è posto
-  const scala = w < 620 ? 0.82 : w < 1100 ? 1 : w < 1560 ? 1.32 : 1.52;
-  cw = Math.round(cw * scala);
+  const cw = w < 620 ? 40 : w < 1100 ? 50 : w < 1560 ? 60 : 68;
   return {
     cw,
     html: melds.map(m => meldHTML(m, clickable(m))).join(''),
@@ -262,39 +260,36 @@ function render() {
 
   // il monte scarti si vede tutto: le ultime carte a ventaglio, la più recente in cima
   const stretto = window.innerWidth < 760;
-  const MOSTRA = stretto ? 3 : 9;
-  const visibili = G.discard.slice(0, MOSTRA).reverse();
+  const visibili = G.discard.slice(0, 3).reverse();
   const nascoste = G.discard.length - visibili.length;
   const montaggio = visibili.length
     ? `<div class="scarti">${nascoste ? `<span class="altre">+${nascoste}</span>` : ''}${visibili.map(c => cardHTML(c)).join('')}</div>`
     : slotHTML();
 
-  const center = `
+  /* I mazzi stanno in una colonna di fianco al tavolo, non più in una fascia
+     in mezzo: la fascia mangiava altezza a tutti e due i giochi calati. */
+  const mazzi = `
+    <div class="pile ${canDraw && G.stock.length ? 'click' : ''} ${G.stock.length ? '' : 'dim'}" data-act="stock">
+      <div class="pilewrap">${G.stock.length ? backHTML() : slotHTML()}<span class="count">${G.stock.length}</span></div>
+      <div class="cap">Tallone</div>
+    </div>
+    <div class="pile scartiera ${canDraw && G.discard.length ? 'click' : ''} ${scartaQui ? 'click bersaglio' : ''} ${G.discard.length ? '' : 'dim'}" data-act="pile">
+      <div class="pilewrap">${montaggio}<span class="count">${G.discard.length}</span></div>
+      <div class="cap">${scartaQui ? 'Scarta qui' : 'Scarti'}</div>
+    </div>
+    <div class="pile pozzetto ${G.teams[0].pozzetto ? 'dim' : ''}">
+      <div class="pilewrap">${G.pozzetti[0].length ? backHTML() : slotHTML()}</div>
+      <div class="cap">Vostro<b>${G.teams[0].pozzetto ? 'preso' : G.pozzetti[0].length}</b></div>
+    </div>
+    <div class="pile pozzetto ${G.teams[1].pozzetto ? 'dim' : ''}">
+      <div class="pilewrap">${G.pozzetti[1].length ? backHTML() : slotHTML()}</div>
+      <div class="cap">Loro<b>${G.teams[1].pozzetto ? 'preso' : G.pozzetti[1].length}</b></div>
+    </div>`;
+
+  const stato = `
     <div class="state">
-      <div>
-        <div class="now">${G.handOver ? 'Mano finita' : G.turn === HUMAN ? 'Tocca a te' : 'Turno di ' + G.names[G.turn]}</div>
-        ${hint ? `<div class="hint ${msgErr ? 'err' : ''}">${hint}</div>` : ''}
-      </div>
-    </div>
-    <div class="piles">
-      <div class="pile ${canDraw && G.stock.length ? 'click' : ''} ${G.stock.length ? '' : 'dim'}" data-act="stock">
-        <div class="pilewrap">${G.stock.length ? backHTML() : slotHTML()}<span class="count">${G.stock.length}</span></div>
-        <div class="cap">Tallone</div>
-      </div>
-      <div class="pile scartiera ${canDraw && G.discard.length ? 'click' : ''} ${scartaQui ? 'click bersaglio' : ''} ${G.discard.length ? '' : 'dim'}" data-act="pile">
-        <div class="pilewrap">${montaggio}<span class="count">${G.discard.length}</span></div>
-        <div class="cap">${scartaQui ? 'Scarta qui' : (stretto ? 'Scarti' : 'Monte scarti')}</div>
-      </div>
-    </div>
-    <div class="pozzetti">
-      <div class="pile ${G.teams[0].pozzetto ? 'dim' : ''}">
-        <div class="pilewrap">${G.pozzetti[0].length ? backHTML() : slotHTML()}</div>
-        <div class="cap">${stretto ? 'Vostro' : 'Pozzetto vostro'}<b>${G.teams[0].pozzetto ? 'preso' : G.pozzetti[0].length}</b></div>
-      </div>
-      <div class="pile ${G.teams[1].pozzetto ? 'dim' : ''}">
-        <div class="pilewrap">${G.pozzetti[1].length ? backHTML() : slotHTML()}</div>
-        <div class="cap">${stretto ? 'Loro' : 'Pozzetto loro'}<b>${G.teams[1].pozzetto ? 'preso' : G.pozzetti[1].length}</b></div>
-      </div>
+      <div class="now">${G.handOver ? 'Mano finita' : G.turn === HUMAN ? 'Tocca a te' : 'Turno di ' + G.names[G.turn]}</div>
+      ${hint ? `<div class="hint ${msgErr ? 'err' : ''}">${hint}</div>` : ''}
     </div>`;
 
   /* — nostri giochi: è anche la zona dove si cala — */
@@ -318,38 +313,34 @@ function render() {
   const croce = G.mode === '2v2';
   $('board').className = 'panel board' + (croce ? ' croce4' : '') + (myTurn && dealCount === null ? ' turno' : '');
   $('board').innerHTML = `
-    <section class="zone posti">
-      <div class="seats">${croce ? seatHTML(2) : seatsOf(1)}</div>
-    </section>
-    <section class="zone giochi">
-      <div class="seat-label">Loro ${teamChips(1)}</div>
-      <div class="melds" style="--cw:${oppM.cw}px">${oppMelds}</div>
-    </section>
-
-    <section class="zone mid">${croce
-      ? `<div class="croce">
-           <div class="lato">${seatHTML(3)}</div>
-           <div class="center">${center}</div>
-           <div class="lato">${seatHTML(1)}</div>
-         </div>`
-      : `<div class="center">${center}</div>`}</section>
-
-    <section class="zone giochi mia">
-      <div class="seat-label">Voi ${teamChips(0)}</div>
-      <div class="melds zona ${calataValida ? 'armata' : ''}" id="my-melds" style="--cw:${myM.cw}px">${myMelds}</div>
-    </section>
-
-    <section class="zone mano">
-      <div class="seat-label mano-h"><b>${nMano} ${nMano === 1 ? 'carta' : 'carte'}</b>
-        ${sel.size ? `<span class="chip on">${sel.size} scelte</span>` : ''}
-        <button class="btn ghost mini" data-a="sort" title="Cambia l'ordine della mano">Per ${sortMode === 'rank' ? 'seme' : 'valore'}</button></div>
-      <div class="hand ${dealing ? 'deal' : ''}" id="hand">${hand}</div>
-    </section>`;
+    <div class="tavolo">
+      ${croce ? `<div class="posto-lato">${seatHTML(3)}</div>` : ''}
+      <div class="campo">
+        <section class="zone posti">
+          <div class="seats">${croce ? seatHTML(2) : seatsOf(1)}</div>
+          ${stato}
+        </section>
+        <section class="zone giochi">
+          <div class="seat-label">Loro ${teamChips(1)}</div>
+          <div class="melds" style="--cw:${oppM.cw}px">${oppMelds}</div>
+        </section>
+        <section class="zone giochi mia">
+          <div class="seat-label">Voi ${teamChips(0)}</div>
+          <div class="melds zona ${calataValida ? 'armata' : ''}" id="my-melds" style="--cw:${myM.cw}px">${myMelds}</div>
+        </section>
+        <section class="zone mano">
+          <div class="seat-label mano-h"><b>${nMano} ${nMano === 1 ? 'carta' : 'carte'}</b>
+            ${sel.size ? `<span class="chip on">${sel.size} scelte</span>` : ''}
+            <button class="btn ghost mini" data-a="sort" title="Cambia l'ordine della mano">Per ${sortMode === 'rank' ? 'seme' : 'valore'}</button></div>
+          <div class="hand ${dealing ? 'deal' : ''}" id="hand">${hand}</div>
+        </section>
+      </div>
+      ${croce ? `<div class="posto-lato">${seatHTML(1)}</div>` : ''}
+      <div class="mazzi">${mazzi}</div>
+    </div>`;
 
   adattaMano();
   adattaGiochi();
-  renderScore();
-  renderLog();
 }
 
 /**
@@ -388,19 +379,6 @@ function adattaGiochi() {
   }
 }
 
-function renderScore() {
-  const t = G.target;
-  const rows = [0, 1].map(i => {
-    const label = G.mode === '2v2' ? (i === 0 ? 'Noi (Tu &amp; Nord)' : 'Loro (Est &amp; Ovest)') : (i === 0 ? 'Tu' : 'Computer');
-    const pct = Math.max(0, Math.min(100, G.matchScore[i] / t * 100));
-    return `<tr><td>${label}<div class="bar"><i style="width:${pct}%"></i></div></td>
-      <td class="n">${G.matchScore[i]}</td></tr>`;
-  }).join('');
-  $('score').innerHTML = `<table><tr><th>Squadra</th><th style="text-align:right">Punti</th></tr>${rows}</table>
-    <div class="goal">Partita a ${t} punti · mano n. ${G.handNo}</div>`;
-  $('hand-no').textContent = G.mode === '2v2' ? 'a coppie' : 'uno contro uno';
-}
-
 function logLine(e) {
   const n = p => G.names[p];
   switch (e.t) {
@@ -414,18 +392,6 @@ function logLine(e) {
   }
   return { h: '' };
 }
-let lastLogLen = -1;
-function renderLog() {
-  if (G.log.length === lastLogLen) return; // la cronaca cambia solo quando cambia il gioco
-  lastLogLen = G.log.length;
-  const out = [];
-  for (let i = G.log.length - 1, n = 0; i >= 0 && n < 45; i--, n++) {
-    const l = logLine(G.log[i]);
-    if (l.h) out.push(`<div class="${l.c || ''}">${l.h}</div>`);
-  }
-  $('log').innerHTML = out.join('');
-}
-
 /* ---------- Interazioni (un solo ascoltatore, delegato) ---------- */
 function scegli(id) {
   if (sel.has(id)) sel.delete(id); else sel.add(id);
@@ -719,7 +685,7 @@ function finishHand() {
       `<button class="btn primary" id="m-next">Mano successiva</button>`);
     $('m-next').onclick = async () => {
       closeModal();
-      E.nextHand(G); sel.clear(); say(''); dealing = true; lastLogLen = -1; handOrder = [];
+      E.nextHand(G); sel.clear(); say(''); dealing = true; handOrder = [];
       save();
       await distribuisci();
       if (G.turn !== HUMAN) await runAI();
@@ -746,7 +712,7 @@ function newGameDialog() {
     const goal = +document.querySelector('input[name=goal]:checked').value;
     closeModal();
     G = E.newGame(mode, { target: goal });
-    sel.clear(); say(''); dealing = true; lastLogLen = -1; handOrder = [];
+    sel.clear(); say(''); dealing = true; handOrder = [];
     save();
     await distribuisci();
     if (G.turn !== HUMAN) await runAI();
@@ -939,7 +905,7 @@ window.__burraco = {
   fineMano: () => finishHand(),
   nuovaPartita: (mode, target) => {
     G = E.newGame(mode, { target: target || 2005 });
-    sel.clear(); msg = ''; dealing = false; lastLogLen = -1; handOrder = [];
+    sel.clear(); msg = ''; dealing = false; handOrder = [];
     busy = false; dealCount = null; render();
   },
 };

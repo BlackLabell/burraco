@@ -5,7 +5,7 @@
 Burraco italiano contro il computer, uno contro uno o a coppie, con le regole ufficiali.
 Gira nel browser, si installa sul telefono e funziona anche senza connessione.
 
-**Versione pubblicata:** `burraco-v14` — 26 agosto 2026
+**Versione pubblicata:** `burraco-v15` — 26 agosto 2026
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server, nessun account
 a pagamento, nessun dominio da comprare.
 
@@ -18,6 +18,29 @@ a pagamento, nessun dominio da comprare.
 ## Novità
 
 Le voci più recenti stanno in alto. Ogni riga corrisponde a una versione di `sw.js`.
+
+### `burraco-v15` — 26 agosto 2026
+**I giochi calati sono diventati il doppio o il triplo.** Due mosse, tutte e due sullo spazio:
+- **Tallone, monte scarti e pozzetti non stanno più in una fascia in mezzo al tavolo**, ma in una
+  colonna stretta sul lato destro. La fascia centrale mangiava 130-170 px di altezza a entrambe le
+  fasce dei giochi; di lato non toglie niente, perché in larghezza lo spazio avanza.
+- **Punteggio e cronaca sono passati dietro il pulsante *Punti***, anche da computer. La colonna
+  di destra è sparita e il tavolo si prende tutta la larghezza dello schermo.
+
+Le carte dei giochi calati, misurate con la partita avviata:
+
+| schermo | prima | adesso |
+|---|---|---|
+| telefono 390×844 | 28 px | 28-40 px |
+| tablet 768×1024 | 34 px | 50 px |
+| pc 1280×800 | 18 px | 40 px |
+| pc 1440×900 | 30 px | 56 px |
+| pc 1920×1080 | 44 px | 64 px |
+
+- La misura non è più decisa a tavolino: si parte da un tetto generoso e si cerca, misurando, la
+  più grande alla quale tutti i giochi ci stanno interi.
+- Lo stato del turno ("Tocca a te" e il suggerimento) è salito nella riga dell'avversario.
+- A coppie, Est e Ovest stanno ai due bordi del campo, prima della colonna dei mazzi.
 
 ### `burraco-v14` — 26 agosto 2026
 Correzioni trovate col collaudo automatico su sei misure di schermo, dal telefono al 1920.
@@ -187,7 +210,7 @@ migliaia di partite. È quello che fanno i test.
 
 1. Cambia il codice.
 2. `npm test` — se un test si rompe, hai toccato una regola.
-3. **Alza `VERSIONE` in `sw.js`** (`burraco-v14` → `burraco-v15`). Senza questo passaggio chi ha
+3. **Alza `VERSIONE` in `sw.js`** (`burraco-v15` → `burraco-v16`). Senza questo passaggio chi ha
    già aperto l'app continua a vedere la versione vecchia presa dalla cache.
 4. Aggiungi una voce in **Novità** qui sopra e aggiorna la versione in cima al file.
 5. Carica su `main`.

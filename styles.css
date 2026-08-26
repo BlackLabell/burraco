@@ -66,13 +66,30 @@ button{font:inherit; color:inherit}
    le fasce dei giochi calati e la colonna laterale. */
 html, body{height:100%; overflow:hidden}
 .wrap{
-  height:100dvh; max-width:1500px; margin:0 auto;
-  padding:14px 16px 16px; display:flex; flex-direction:column; gap:12px;
+  height:100dvh; max-width:1680px; margin:0 auto;
+  padding:12px 14px 14px; display:flex; flex-direction:column; gap:10px;
 }
 .layout{flex:1 1 auto; min-height:0}
-aside{min-height:0; height:100%; overflow-y:auto; scrollbar-width:thin}
 .board{height:100%; min-height:0}
-.zone.posti, .zone.mid, .zone.mano{flex:0 0 auto}
+
+/* Il tavolo: il campo da gioco a sinistra, la colonna dei mazzi di fianco.
+   Prima i mazzi stavano in una fascia in mezzo e mangiavano altezza a tutti
+   e due i giochi calati; di lato non tolgono niente. */
+.tavolo{display:flex; height:100%; min-height:0}
+.campo{flex:1 1 auto; min-width:0; min-height:0; display:flex; flex-direction:column}
+.mazzi{
+  flex:0 0 auto; display:grid; grid-template-columns:auto auto;
+  align-content:center; justify-content:center; gap:16px 14px;
+  padding:10px 14px; border-left:1px solid var(--felt-line);
+  background:var(--felt-hole);
+}
+.posto-lato{
+  flex:0 0 auto; display:flex; align-items:center; padding:0 8px;
+  border-left:1px solid var(--felt-line);
+}
+.posto-lato:first-child{border-left:none; border-right:1px solid var(--felt-line)}
+
+.zone.posti, .zone.mano{flex:0 0 auto}
 .zone.giochi{flex:1 1 0; min-height:0; display:flex; flex-direction:column}
 .zone.giochi{position:relative}
 .zone.giochi .melds{
@@ -118,17 +135,9 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 .btn.ghost{background:transparent}
 
 /* ── Impianto ──────────────────────────────────────────────── */
-.layout{display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:14px; align-items:stretch}
-/* Sotto i 1000 px la colonna laterale finirebbe sotto il tavolo, rubandogli
-   metà altezza: si nasconde e punteggio, cronaca e menu passano nei pulsanti
-   in testata, come sul telefono. */
-@media (max-width:1000px){
-  .layout{grid-template-columns:minmax(0,1fr)}
-  .layout > aside{display:none}
-  .top-actions .solo-telefono{display:inline-block}
-  .top-actions .no-telefono{display:none}
-  .top-actions #btn-menu{font-size:16px; line-height:1; padding:5px 10px}
-}
+/* Il tavolo prende tutta la larghezza: punteggio e cronaca stanno nella
+   finestra "Punti", che si apre solo quando serve. */
+.layout{display:block}
 
 .panel{background:var(--panel); border:1px solid var(--edge); border-radius:3px; box-shadow:0 1px 0 var(--shadow)}
 
@@ -143,10 +152,7 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
   display:flex; flex-direction:column; overflow:hidden;
 }
 .zone{padding:10px 14px; border-top:1px solid var(--felt-line)}
-/* la banda centrale è di servizio: non deve rubare spazio alle carte */
-.zone.mid{padding:8px 14px}
 .zone:first-child{border-top:none}
-.zone.mid{background:var(--felt-hole)}
 
 .seat-label{
   display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;
@@ -162,17 +168,16 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 .chip.turn{border-color:#7FD3A5; color:#7FD3A5; background:rgba(0,0,0,.24)}
 
 /* ── I quattro posti a croce (partita a coppie) ────────────── */
-.croce{display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:14px}
-.croce .lato .seat{flex-direction:column; gap:5px}
+.posto-lato .seat{flex-direction:column; gap:5px}
 /* di fianco al tavolo la mano si tiene di taglio: le carte si impilano */
-.croce .lato .fan{
+.posto-lato .fan{
   flex-direction:column; align-items:center; padding-top:0; --cw:34px;
   /* la pila di dorsi non deve mai far crescere la banda centrale */
   max-height:calc(var(--cw) * 2.6); overflow:hidden;
 }
-.croce .lato .fan .card{transform:none !important; transform-origin:50% 50%}
-.croce .lato .fan .card + .card{margin-left:0; margin-top:calc(var(--cw) * -1.16)}
-.croce .lato .who{text-align:center; max-width:11ch}
+.posto-lato .fan .card{transform:none !important; transform-origin:50% 50%}
+.posto-lato .fan .card + .card{margin-left:0; margin-top:calc(var(--cw) * -1.16)}
+.posto-lato .who{text-align:center; max-width:11ch; font-size:11px}
 
 /* ── Mani coperte degli altri giocatori ────────────────────── */
 .seats{display:flex; gap:26px; flex-wrap:wrap; align-items:center; justify-content:center}
@@ -347,11 +352,9 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 
 /* ── Centro tavolo ─────────────────────────────────────────── */
 /* stato a sinistra, mazzi al centro, pozzetti a destra */
-.center{display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:14px}
-.center .piles{grid-column:2; display:flex; gap:22px; flex-wrap:wrap; justify-content:center}
-.center .pozzetti{grid-column:3; display:flex; gap:14px; justify-content:flex-end}
-/* i pozzetti si guardano una volta a mano: stanno più piccoli */
-.center .pozzetti .pile{--cw:38px}
+/* i pozzetti si guardano una volta a mano: stanno più piccoli del tallone */
+.mazzi .pile{--cw:56px}
+.mazzi .pile.pozzetto{--cw:40px}
 .pile{display:flex; flex-direction:column; align-items:center; gap:6px; --cw:56px}
 .pile .cap{font-size:10.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--felt-soft); text-align:center}
 .pile .cap b{display:block; font-size:15px; letter-spacing:0; color:var(--felt-ink); font-variant-numeric:tabular-nums}
@@ -378,8 +381,11 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 .board:not(.turno) .hand .card{cursor:default}
 @media (max-width:600px){ .board.turno .hand{--cw:62px} }
 
-.state{display:flex; align-items:center; padding:2px 4px}
-.state .now{font-family:"Bodoni Moda",Georgia,serif; font-size:18px; line-height:1.2; color:var(--felt-ink)}
+.zone.posti{display:flex; align-items:center; gap:16px; flex-wrap:wrap}
+.zone.posti .seats{flex:0 0 auto; justify-content:flex-start}
+.zone.posti .state{margin-left:auto; text-align:right}
+.state{display:flex; flex-direction:column; align-items:flex-end; padding:0}
+.state .now{font-family:"Bodoni Moda",Georgia,serif; font-size:17px; line-height:1.15; color:var(--felt-ink)}
 .state .step{font-size:12.5px; color:var(--felt-soft)}
 .state ul{margin:2px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:2px}
 .state li{font-size:11.5px; color:var(--felt-soft); opacity:.8; display:flex; gap:6px; align-items:baseline}
@@ -387,10 +393,6 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 .state li.done{color:#7FD3A5; opacity:1}
 @media (max-width:600px){
   .state{min-width:0; justify-content:center}
-  .center{grid-template-columns:1fr; gap:12px}
-  /* i quattro mazzi in due file da due, invece di 3 + 1 */
-  .center .piles{grid-column:1; justify-content:center; gap:20px}
-  .center .pozzetti{grid-column:1; justify-content:center}
   .scarti .card + .card{margin-left:calc(var(--cw) * -0.74)}
   .pile{--cw:50px}
   .hand{--cw:56px; gap:4px}
@@ -407,7 +409,9 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 .pilewrap{position:relative}
 /* il monte scarti mostra le ultime carte, così si vede cosa c'è sotto */
 .scarti{display:flex; align-items:flex-end}
-.scarti .card + .card{margin-left:calc(var(--cw) * -0.70)}
+/* nella colonna dei mazzi il numeretto sulla carta dice già quante sono */
+.mazzi .scarti .altre{display:none}
+.scarti .card + .card{margin-left:calc(var(--cw) * -0.80)}
 .scarti .altre{
   align-self:center; font-size:11px; font-weight:700; color:var(--felt-soft);
   margin-right:4px; font-variant-numeric:tabular-nums;
@@ -421,7 +425,7 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 
 /* ── Barra azioni ──────────────────────────────────────────── */
 /* il suggerimento vive nella banda centrale, sotto "Tocca a te" */
-.state .hint{font-size:13px; color:var(--felt-soft); margin-top:3px; max-width:34ch; line-height:1.35}
+.state .hint{font-size:12.5px; color:var(--felt-soft); margin-top:2px; max-width:40ch; line-height:1.3}
 .hint.err{color:#F0A79E}
 /* intestazione della mano: il pulsante dell'ordine sta qui, non nella riga sotto */
 .seat-label.mano-h{align-items:center; margin-bottom:6px}
@@ -523,7 +527,6 @@ details.rules b{color:var(--ink)}
 
   /* il tavolo prende tutto lo spazio che resta */
   .layout{flex:1 1 auto; min-height:0; display:block}
-  aside{display:none}
   .board{height:100%; border-width:3px; border-radius:8px}
 
   .zone{padding:7px 9px}
@@ -531,18 +534,11 @@ details.rules b{color:var(--ink)}
   .seat-label b{font-size:12px}
   .chip{font-size:9px; padding:1px 6px}
 
-  /* fasce a misura: quelle dei giochi si prendono il resto e scorrono */
-  .zone.mid{padding:7px 9px}
-  /* le fasce dei giochi crescono col contenuto e scorrono di lato,
-     così ogni gioco resta intero invece di essere tagliato a metà */
+  /* le fasce dei giochi si prendono tutto lo spazio che avanza; le carte si
+     adattano da sole (adattaGiochi) e vanno a capo come sul computer */
   .zone.giochi{min-height:62px}
-  .zone.giochi .melds{
-    min-height:0; flex:1 1 auto; flex-wrap:nowrap; justify-content:flex-start;
-    overflow-x:auto; overflow-y:auto; gap:7px; padding-bottom:2px;
-    scrollbar-width:none;
-  }
-  .zone.giochi .melds::-webkit-scrollbar{display:none}
-  .meld{padding:4px 6px 3px}
+  .zone.giochi .melds{gap:6px}
+  .meld{padding:3px 5px}
 
   .seat{gap:9px}
   .seat .fan{--cw:30px; padding-top:0}
@@ -550,21 +546,22 @@ details.rules b{color:var(--ink)}
   .seat .who{font-size:11px; text-align:left}
 
   /* a croce, ai lati del tavolo c'è poco spazio: solo nome e numero */
-  .croce{gap:5px}
-  .croce .lato .seat{gap:3px}
-  .croce .lato .fan{--cw:25px}
-  .croce .lato .fan .card + .card{margin-top:calc(var(--cw) * -1.2)}
-  .croce .lato .who{font-size:9.5px; line-height:1.15; max-width:6ch; white-space:normal}
-  .croce .lato .who .unita{display:none}
-  .croce .lato .who .sep{display:block; height:0; overflow:hidden}
+  .posto-lato{padding:0 3px}
+  .posto-lato .seat{gap:3px}
+  .posto-lato .fan{--cw:24px}
+  .posto-lato .fan .card + .card{margin-top:calc(var(--cw) * -1.2)}
+  .posto-lato .who{font-size:9px; line-height:1.15; max-width:5ch; white-space:normal}
+  .posto-lato .who .unita{display:none}
+  .posto-lato .who .sep{display:block; height:0; overflow:hidden}
 
-  /* i quattro mazzi in una riga sola: si recupera un'intera fila */
-  .center{display:grid; grid-template-columns:repeat(4,auto); justify-content:center; gap:4px 10px}
-  .center .state{grid-column:1 / -1; justify-content:center}
-  .center .piles, .center .pozzetti{display:contents}
-  /* il numeretto sporge sotto la carta: serve aria prima dell'etichetta */
-  .pile{--cw:42px; gap:9px}
-  .center .pozzetti .pile{--cw:30px}
+  /* la colonna dei mazzi, stretta, di fianco al campo */
+  .mazzi{grid-template-columns:auto; gap:10px; padding:6px 4px}
+  .pile{gap:4px}
+  .mazzi .pile{--cw:40px}
+  .mazzi .pile.pozzetto{--cw:28px}
+  .mazzi .pile .cap{font-size:7.5px; letter-spacing:.04em; max-width:7ch}
+  .mazzi .pile .cap b{font-size:11px}
+  .pilewrap .count{right:-5px; bottom:-5px; min-width:18px; font-size:9.5px; padding:0 4px}
   .pile .cap{font-size:9px; letter-spacing:.08em}
   .pile .cap b{font-size:13px}
   .state .now{font-size:16px}
@@ -577,7 +574,9 @@ details.rules b{color:var(--ink)}
   .hand .card.sel{z-index:5; transform:translateY(-14px)}
   .board.turno .hand{--cw:76px}
 
-  .state .hint{font-size:11.5px; max-width:30ch; margin:2px auto 0; text-align:center}
+  .state .hint{font-size:10.5px; max-width:24ch; margin-top:1px}
+  .state .now{font-size:14px}
+  .zone.posti{gap:8px}
   /* i semi disegnati si leggono in mano, non su mazzi da 42 px */
   .pile .card .mid .semi{display:none}
   .pile .card .mid .pip:not(.asso){display:block}
@@ -615,21 +614,18 @@ details.rules b{color:var(--ink)}
   .board.turno .hand{--cw:82px}
   .hand .card.gap-before{margin-left:32px}
 
-  .pile{--cw:62px; gap:7px}
-  .center .pozzetti .pile{--cw:42px}
+  .mazzi .pile{--cw:64px}
+  .mazzi .pile.pozzetto{--cw:46px}
+  .mazzi{gap:20px 16px; padding:12px 18px}
   .pile .cap{font-size:11.5px}
   .pile .cap b{font-size:18px}
   .pilewrap .count{min-width:25px; font-size:12px; padding:2px 6px}
-  .center{gap:22px}
-  .center .piles{gap:32px}
-  .center .pozzetti{gap:22px}
 
   .seat .fan{--cw:34px}
   .seat .fan .card + .card{margin-left:-20px}
   .seat .who{font-size:12.5px}
   .seats{gap:34px}
-  .croce{gap:24px}
-  .croce .lato .fan{--cw:46px}
+  .posto-lato .fan{--cw:46px}
 
   .state .now{font-size:22px}
   .state .step{font-size:14px}
@@ -660,8 +656,8 @@ details.rules b{color:var(--ink)}
   .layout{grid-template-columns:minmax(0,1fr) 360px}
   .hand{--cw:84px; gap:9px}
   .board.turno .hand{--cw:94px}
-  .pile{--cw:72px}
-  .center .pozzetti .pile{--cw:48px}
+  .mazzi .pile{--cw:74px}
+  .mazzi .pile.pozzetto{--cw:52px}
   .pile .cap b{font-size:20px}
   .seat .fan{--cw:48px}
   .seat .fan .card + .card{margin-left:-29px}
