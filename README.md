@@ -6,7 +6,7 @@ Burraco italiano con le regole ufficiali: **contro il computer** (uno contro uno
 oppure **online in due**, con un codice di quattro lettere da dettare all'altro.
 Gira nel browser, si installa sul telefono e contro il computer funziona anche senza connessione.
 
-**Versione pubblicata:** `burraco-v23` — 26 agosto 2026
+**Versione pubblicata:** `burraco-v24` — 27 agosto 2026
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server, nessun account
 a pagamento, nessun dominio da comprare.
 
@@ -23,6 +23,38 @@ a pagamento, nessun dominio da comprare.
 ## Novità
 
 Le voci più recenti stanno in alto. Ogni riga corrisponde a una versione di `sw.js`.
+
+### `burraco-v24` — 27 agosto 2026
+
+**Il tavolo suona e si distribuisce davvero.**
+
+- **La fascia in mezzo.** Tallone e monte scarti non stanno più in una colonna a destra: c'è
+  una striscia stretta che **attraversa tutto lo schermo** e divide i due campi — sopra i loro
+  giochi, sotto i vostri. I due pozzetti stanno in fondo a destra.
+- **Il monte scarti si legge tutto.** Le carte sono stese in orizzontale e se ne vedono **nove**
+  invece di tre, con l'ultima scartata intera in fondo a destra e un `+N` per quelle sotto.
+  Prima, dopo l'ottava o la nona, quello che c'era sotto non si vedeva più.
+- **La distribuzione come al tavolo vero.** Si mischia il mazzo, si alza, e dalla parte di sopra
+  si fanno i due pozzetti prendendo una carta per volta; poi dalla parte di sotto si danno le
+  carte ai giocatori, una per uno, in giro; alla fine si gira la prima carta sul monte.
+  Dura poco meno di quattro secondi — e se hai fretta **basta toccare lo schermo per saltarla**.
+- **I suoni.** Musica di sottofondo lenta e discreta, il fruscio delle carte, la mischiata, le
+  carte che vengono date, la calata, la carta girata, il pozzetto che arriva, e **due note
+  gentili quando torna il tuo turno** — comode quando guardi altrove mentre gioca il computer.
+  Si accendono e si spengono dal 🔊 in prima pagina o dal menu ☰, e la scelta resta.
+  **Sono costruiti dall'app sul momento** (niente file audio): l'app non pesa un byte di più e
+  i suoni funzionano anche senza connessione.
+- **Il computer non è più istantaneo.** Fra pescata, calate e scarto si prende il tempo che si
+  prenderebbe una persona, e mai lo stesso: le pause tutte uguali si notano più delle pause
+  lunghe. Un turno dura ormai tre o quattro secondi, e si segue quello che fa.
+- **La scritta del turno.** Quando il turno cambia compare in mezzo al tavolo: *Tocca a te*
+  in ottone, oppure *Tocca a <nome>*. Quella dell'avversario se ne va da sola; **la tua resta
+  finché non tocchi**, ed è quello stesso tocco che la manda via — non si mangia il tocco, la
+  carta la peschi lo stesso.
+- *Punti* e ☰ stanno **in alto a destra**, sempre nello stesso posto.
+- **Online si vede quante carte ha l'altro.** Chi entrava in un tavolo già aperto non vedeva il
+  posto dell'avversario: il disegno cercava sempre la squadra 1, che per chi siede al posto 1
+  è la propria.
 
 ### `burraco-v23` — 26 agosto 2026
 
@@ -324,6 +356,7 @@ conto si provano anche su una macchina senza internet.
 
 - **Un tasto «segnala un problema»** dentro l'app, che mandi schermo, versione e ultime mosse:
   è la cosa che serve per far provare l'app a venti persone e capire cosa si rompe davvero.
+- **Schermo orizzontale**: con la fascia in mezzo il telefono girato va rimisurato.
 - **Informativa privacy e condizioni d'uso**: da quando si raccoglie un'email sono obbligatorie.
 - **Trova avversario** per chi non ha un amico a portata di codice.
 - **Arbitro sul server**, se un giorno servirà: oggi il motore gira sui telefoni, quindi fra
@@ -400,6 +433,7 @@ src/ui.js                interfaccia: disegno del tavolo, clic, finestre, animaz
 src/rete.js              gioco online: apre il tavolo, manda e legge le mosse
 src/conto.js             registrazione e accesso, sessione sul telefono
 src/statistiche.js       il conto delle partite, anche senza conto e senza rete
+src/suoni.js             musica ed effetti, costruiti dal browser: nessun file audio
 sw.js                    service worker: fa funzionare l'app senza connessione
 manifest.webmanifest     dati per l'installazione sul telefono
 icons/                   icone dell'app

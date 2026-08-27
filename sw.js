@@ -1,6 +1,6 @@
 /* Service worker: tiene l'app giocabile anche senza connessione.
    Alza VERSIONE a ogni rilascio: la vecchia cache viene buttata. */
-const VERSIONE = 'burraco-v23';
+const VERSIONE = 'burraco-v24';
 
 const FILE = [
   './',
@@ -11,6 +11,7 @@ const FILE = [
   './src/rete.js',
   './src/conto.js',
   './src/statistiche.js',
+  './src/suoni.js',
   './manifest.webmanifest',
   './icons/favicon.svg',
   './icons/icon-192.png',

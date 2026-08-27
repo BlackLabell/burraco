@@ -5,6 +5,7 @@ import E from './engine.js';
 import Rete, { RITMO } from './rete.js';
 import Conto from './conto.js';
 import Stat, { riassunto } from './statistiche.js';
+import Suoni from './suoni.js';
 
 const $ = id => document.getElementById(id);
 
@@ -17,6 +18,7 @@ let handOrder = [];   // ordine scelto a mano dal giocatore
 let dealCount = null;     // quante carte sono già state distribuite (null = distribuzione finita)
 let online = false;       // partita contro una persona, non contro il computer
 let pozzettoAnim = null;  // {p, n}: le carte del pozzetto che stanno arrivando in mano a p
+let scartiNascosti = false;   // durante la distribuzione, finché non si gira la prima carta
 /* Il proprio posto al tavolo. Contro il computer è sempre il posto 0;
    online, chi entra in un tavolo già aperto siede al posto 1. Tutto il
    disegno parte da qui: "i vostri giochi" sono quelli della squadra di
@@ -215,6 +217,7 @@ const rett = el => (el ? el.getBoundingClientRect() : null);
 
 const elMazzo = () => document.querySelector('.pile[data-act="stock"] .pilewrap');
 const elScarti = () => document.querySelector('.pile.scartiera .pilewrap');
+const elPozzetto = quale => document.querySelector(`.pile[data-poz="${quale}"] .pilewrap`);
 const elGiochiDi = team => document.querySelector(team === MIA()
   ? '#my-melds' : '.zone.giochi:not(.mia) .melds');
 const elPosto = p => document.querySelector(`.seat[data-p="${p}"] .fan`);
@@ -243,10 +246,10 @@ function postoIn(el, largh) {
  * `pezzi` è un elenco di { html, da, a }: partono a scaletta, non tutti
  * insieme, così si contano anche quando sono parecchie.
  */
-function vola(pezzi, ms = 280) {
+function vola(pezzi, ms = 280, passoDato) {
   pezzi = pezzi.filter(x => x && x.da && x.a);
   if (senzaMoto() || !pezzi.length) return Promise.resolve();
-  const passo = 45;
+  const passo = passoDato || 45;
   const cloni = pezzi.map(({ html, da, a }, i) => {
     const box = document.createElement('div');
     box.innerHTML = html;
@@ -272,6 +275,50 @@ function partenzeDallaMano(ids) {
     el.style.visibility = 'hidden';      // non si vede due volte la stessa carta
     return { el, da: rett(el) };
   }).filter(Boolean);
+}
+
+/* ---------- L'annuncio del turno ----------
+   Una scritta grande in mezzo al tavolo quando il turno cambia: guardando
+   la mano è facile non accorgersene. Quella dell'avversario se ne va da
+   sola; quella tua resta finché non tocchi — è il segnale che aspetta te. */
+let annuncioVia = null;
+
+function annuncio(testo, aspettaIlTocco) {
+  const board = $('board');
+  if (!board || senzaMoto()) return;
+  toglieAnnuncio();
+  const el = document.createElement('div');
+  el.className = 'annuncio' + (aspettaIlTocco ? ' tuo' : '');
+  el.innerHTML = `<span>${esc(testo)}</span>`;
+  board.appendChild(el);
+
+  if (aspettaIlTocco) {
+    annuncioVia = () => toglieAnnuncio();
+    document.addEventListener('pointerdown', annuncioVia, { once: true });
+    document.addEventListener('keydown', annuncioVia, { once: true });
+  } else {
+    const t = setTimeout(() => toglieAnnuncio(), 1500);
+    annuncioVia = () => { clearTimeout(t); toglieAnnuncio(); };
+  }
+}
+
+function toglieAnnuncio() {
+  if (annuncioVia) {
+    document.removeEventListener('pointerdown', annuncioVia);
+    document.removeEventListener('keydown', annuncioVia);
+    annuncioVia = null;
+  }
+  document.querySelectorAll('.annuncio').forEach(e => {
+    e.classList.add('via');
+    setTimeout(() => e.remove(), 320);
+  });
+}
+
+/** Il turno è passato: si annuncia a chi tocca. */
+function annunciaTurno() {
+  if (G.handOver || dealCount !== null) return;
+  if (G.turn === HUMAN) { Suoni.suona('tocca'); annuncio('Tocca a te', true); }
+  else annuncio('Tocca a ' + G.names[G.turn], false);
 }
 
 /* ---------- Render ---------- */
@@ -376,7 +423,7 @@ function render() {
   const quantiAccettano = G.teams[MIA()].melds.filter(accetta).length;
   let hint = msg;
   if (!hint) {
-    if (dealCount !== null) hint = 'Distribuzione in corso…';
+    if (dealCount !== null) hint = 'Distribuzione in corso…';   // se nessuno dice altro
     else if (G.handOver) hint = 'Mano conclusa.';
     else if (busy || G.turn !== HUMAN) hint = '';
     else if (G.phase === 'draw') hint = 'Pesca dal tallone o prendi il monte.';
@@ -389,36 +436,37 @@ function render() {
     else hint = 'Scegli le carte. Trascina per riordinare.';
   }
 
-  // il monte scarti si vede tutto: le ultime carte a ventaglio, la più recente in cima
-  const visibili = G.discard.slice(0, 3).reverse();
-  const nascoste = G.discard.length - visibili.length;
+  /* Il monte scarti steso in orizzontale: si vedono le ultime nove carte,
+     l'ultima scartata in cima a destra. Prima se ne vedevano tre e sotto
+     la nona spariva tutto — e sapere cosa c'è sotto è mezzo gioco. */
+  const QUANTE_SCARTI = 9;
+  const monte = scartiNascosti ? [] : G.discard;      // la prima carta si gira alla fine
+  const visibili = monte.slice(0, QUANTE_SCARTI).reverse();
+  const nascoste = monte.length - visibili.length;
   const montaggio = visibili.length
     ? `<div class="scarti">${nascoste ? `<span class="altre">+${nascoste}</span>` : ''}${visibili.map(c => cardHTML(c)).join('')}</div>`
     : slotHTML();
 
-  /* I mazzi stanno in una colonna di fianco al tavolo, non più in una fascia
-     in mezzo: la fascia mangiava altezza a tutti e due i giochi calati. */
-  /* Ordine dall'alto: il pozzetto loro sta dalla loro parte, il vostro dalla
-     vostra, e in mezzo tallone e scarti — ben staccati, perché è lì che si tocca
-     a ogni turno e sbagliare mazzo costa il turno. */
+  /* La fascia in mezzo: attraversa tutto lo schermo e divide i due campi.
+     Tallone e monte stesi in orizzontale, i due pozzetti in fondo a destra.
+     Stretta il più possibile: ogni pixel qui è un pixel in meno per le carte
+     calate. */
   const mazzi = `
-    <button class="btn ghost mini colonna" data-a="menu" title="Menu" aria-label="Menu">☰</button>
-    <button class="btn ghost mini colonna" data-a="punti" title="Punteggio e cronaca">Punti</button>
-    <div class="pile pozzetto ${G.teams[LORO()].pozzetto ? 'dim' : ''}">
-      <div class="pilewrap">${G.pozzetti[LORO()].length ? backHTML() : slotHTML()}</div>
-      <div class="cap">Loro<b>${G.teams[LORO()].pozzetto ? 'preso' : G.pozzetti[LORO()].length}</b></div>
-    </div>
     <div class="pile ${canDraw && G.stock.length ? 'click' : ''} ${G.stock.length ? '' : 'dim'}" data-act="stock">
       <div class="pilewrap">${G.stock.length ? backHTML() : slotHTML()}<span class="count">${G.stock.length}</span></div>
-      <div class="cap">Tallone</div>
     </div>
     <div class="pile scartiera ${canDraw && G.discard.length ? 'click' : ''} ${scartaQui ? 'click bersaglio' : ''} ${G.discard.length ? '' : 'dim'}" data-act="pile">
-      <div class="pilewrap">${montaggio}<span class="count">${G.discard.length}</span></div>
-      <div class="cap">${scartaQui ? 'Scarta qui' : 'Scarti'}</div>
+      <div class="pilewrap">${montaggio}</div>
     </div>
-    <div class="pile pozzetto ${G.teams[MIA()].pozzetto ? 'dim' : ''}">
-      <div class="pilewrap">${G.pozzetti[MIA()].length ? backHTML() : slotHTML()}</div>
-      <div class="cap">Vostro<b>${G.teams[MIA()].pozzetto ? 'preso' : G.pozzetti[MIA()].length}</b></div>
+    <div class="pozzetti">
+      <div class="pile pozzetto ${G.teams[LORO()].pozzetto ? 'dim' : ''}" data-poz="loro">
+        <div class="pilewrap">${G.pozzetti[LORO()].length ? backHTML() : slotHTML()}</div>
+        <div class="cap">Loro</div>
+      </div>
+      <div class="pile pozzetto ${G.teams[MIA()].pozzetto ? 'dim' : ''}" data-poz="mia">
+        <div class="pilewrap">${G.pozzetti[MIA()].length ? backHTML() : slotHTML()}</div>
+        <div class="cap">Voi</div>
+      </div>
     </div>`;
 
   const stato = `
@@ -442,28 +490,33 @@ function render() {
 
   /* — azioni — */
 
-  const nMano = G.hands[HUMAN].length;
+  // durante la distribuzione si contano le carte che sono già arrivate
+  const nMano = dealCount !== null ? dealCount : G.hands[HUMAN].length;
   // a coppie i quattro posti stanno a croce: Nord è il compagno, Est e Ovest
   // gli avversari ai lati del tavolo, tu a Sud con la mano in basso
   const croce = G.mode === '2v2';
   $('board').className = 'panel board' + (croce ? ' croce4' : '') + (myTurn && dealCount === null ? ' turno' : '');
   $('board').innerHTML = `
     <div class="tavolo">
-      ${croce ? `<div class="posto-lato">${seatHTML(3)}</div>` : ''}
+      ${croce ? `<div class="posto-lato">${seatHTML((HUMAN + 3) % 4)}</div>` : ''}
       <div class="campo">
         <section class="zone posti">
-          <div class="seats">${croce ? seatHTML(2) : seatsOf(1)}</div>
+          <div class="seats">${croce ? seatHTML((HUMAN + 2) % 4) : seatsOf(LORO())}</div>
           ${stato}
+          <div class="comandi">
+            <button class="btn ghost mini" data-a="menu" title="Menu" aria-label="Menu">☰</button>
+            <button class="btn ghost mini" data-a="punti" title="Punteggio e cronaca">Punti</button>
+          </div>
         </section>
         <section class="zone giochi">
           <div class="melds" style="--cw:${oppM.cw}px">${oppMelds}</div>
         </section>
+        <div class="mazzi">${mazzi}</div>
         <section class="zone giochi mia">
           <div class="melds zona ${calataValida ? 'armata' : ''}" id="my-melds" style="--cw:${myM.cw}px">${myMelds}</div>
         </section>
       </div>
-      ${croce ? `<div class="posto-lato">${seatHTML(1)}</div>` : ''}
-      <div class="mazzi">${mazzi}</div>
+      ${croce ? `<div class="posto-lato">${seatHTML((HUMAN + 1) % 4)}</div>` : ''}
     </div>
     <section class="zone mano">
       <div class="seat-label mano-h"><b>${nMano} ${nMano === 1 ? 'carta' : 'carte'}</b>
@@ -581,6 +634,7 @@ function mostraHome() {
                <input id="home-nome" type="text" maxlength="14" placeholder="Tu"
                       value="${esc(nome)}" autocomplete="off" spellcheck="false">
              </label>`}
+        <button class="btn ghost mini" data-h="suono" title="Musica e suoni">${Suoni.musica || Suoni.effetti ? '🔊' : '🔇'}</button>
         <button class="btn ghost mini" data-h="tema">Tema chiaro / scuro</button>
       </div>
       ${Conto.dentro
@@ -634,7 +688,8 @@ async function avviaPartita(mode, target, seme) {
   nascondiHome();
   save();
   await distribuisci();
-  if (G.turn !== HUMAN) await runAI();
+  annunciaTurno();
+  if (!online && G.turn !== HUMAN) await runAI();
 }
 
 function riprendiPartita() {
@@ -674,6 +729,7 @@ async function avviaOnline(partita, posto, mosse) {
   for (const r of arretrate) applicaSenzaVolo(r.mossa);
   salvaBiglietto();
   if (!arretrate.length) { dealing = true; await distribuisci(); } else render();
+  annunciaTurno();
   ciclaRete();
 }
 
@@ -762,9 +818,9 @@ async function mossaDellAltro(payload) {
   } finally {
     busy = false;
   }
-  if (G.turn === HUMAN) say('');
   render();
-  if (G.handOver) finishHand();
+  if (G.handOver) { finishHand(); return; }
+  if (G.turn === HUMAN) { say(''); annunciaTurno(); }
 }
 
 /* ---------- Interazioni (un solo ascoltatore, delegato) ---------- */
@@ -774,6 +830,12 @@ function scegli(id) {
 }
 
 function bindOnce() {
+  /* Il browser non lascia partire nessun suono prima che la persona abbia
+     toccato qualcosa: al primo tocco si accende tutto. */
+  const sveglia = () => Suoni.sveglia();
+  document.addEventListener('pointerdown', sveglia, { once: true });
+  document.addEventListener('keydown', sveglia, { once: true });
+
   $('home').addEventListener('click', ev => {
     const b = ev.target.closest('button[data-h]');
     if (!b) return;
@@ -786,6 +848,7 @@ function bindOnce() {
     else if (b.dataset.h === 'rientra') rientraOnline();
     else if (b.dataset.h === 'regole') rulesDialog();
     else if (b.dataset.h === 'tema') cambiaTema();
+    else if (b.dataset.h === 'suono') suonoDialog();
   });
 
   const board = $('board');
@@ -922,7 +985,7 @@ function bindOnce() {
 function say(text, isErr) { msg = text || ''; msgErr = !!isErr; }
 
 function after(r) {
-  if (!r.ok) { say(r.error, true); render(); return false; }
+  if (!r.ok) { Suoni.suona('no'); say(r.error, true); render(); return false; }
   sel.clear(); dealing = false;
   if (r.pozzetto) say(r.volo ? 'Pozzetto preso al volo: continua il turno.' : 'Pozzetto preso.');
   else say('');
@@ -937,6 +1000,7 @@ async function doDraw(src) {
   const a = postoInMano();
   const quante = src === 'stock' ? 1 : Math.min(G.discard.length, 5);
   busy = true;
+  Suoni.suona('carta');
   await vola(Array.from({ length: quante }, () => ({ html: backHTML(), da, a })), 250);
   busy = false;
   const r = E.draw(G, HUMAN, src);
@@ -947,7 +1011,7 @@ async function doDraw(src) {
 async function doMeld() {
   const scelte = [...sel];
   const prova = E.solveMeld(G.hands[HUMAN].filter(c => sel.has(c.id)));
-  if (prova) await volaVerso(scelte, elGiochiDi(MIA()));
+  if (prova) { Suoni.suona('cala'); await volaVerso(scelte, elGiochiDi(MIA())); }
   const r = E.meldNew(G, HUMAN, scelte);
   if (!after(r)) { render(); return; }
   render();
@@ -972,6 +1036,7 @@ function annullaCalata() {
 
 async function doAttack(meldId) {
   const scelte = [...sel];
+  Suoni.suona('cala');
   await volaVerso(scelte, document.querySelector(`#my-melds .meld[data-meld="${meldId}"]`));
   const r = E.addToMeld(G, HUMAN, meldId, scelte);
   if (!after(r)) { render(); return; }
@@ -983,13 +1048,14 @@ async function doAttack(meldId) {
 
 async function doDiscard() {
   const id = [...sel][0];
+  Suoni.suona('gira');
   await volaVerso([id], elScarti());
   const r = E.discard(G, HUMAN, id);
   if (!after(r)) { render(); return; }
   render();
   if (r.pozzetto) await animaPozzetto(HUMAN);
   if (G.handOver) { finishHand(); return; }
-  if (online) { render(); return; }   // tocca all'altra persona: si aspetta
+  if (online) { render(); annunciaTurno(); return; }   // tocca all'altra persona
   await runAI();
 }
 
@@ -1017,6 +1083,7 @@ async function animaPozzetto(p) {
   const tot = G.hands[p].length;
   pozzettoAnim = { p, n: 0 };
   render();
+  Suoni.suona('pozzetto');
   await sleep(200);
   for (let k = 1; k <= tot; k++) {
     pozzettoAnim.n = k;
@@ -1030,21 +1097,156 @@ async function animaPozzetto(p) {
 }
 
 /** Distribuzione: le carte arrivano una alla volta, come al tavolo. */
+/* ============================================================
+   LA DISTRIBUZIONE, COME AL TAVOLO
+   Si mischia, si alza il mazzo, e con la parte di sopra si fanno i due
+   pozzetti prendendo una carta per volta da sotto; con la parte di sotto
+   si danno le carte ai giocatori, una per uno, in giro. Alla fine si
+   gira la prima carta sul monte e quel che resta è il tallone.
+   Chi ha fretta tocca lo schermo e si salta.
+   ============================================================ */
+
+let saltaDistribuzione = false;
+
+/** Il mazzetto alzato, che resta in aria sopra il tallone. */
+function mazzettoInAria(rif, su) {
+  if (!rif) return null;
+  const el = document.createElement('div');
+  el.className = 'alzata';
+  el.innerHTML = backHTML() + backHTML() + backHTML();
+  el.style.cssText = `left:${rif.left}px; top:${rif.top - su}px;` +
+    `width:${rif.width}px; height:${rif.height}px`;
+  document.body.appendChild(el);
+  return el;
+}
+
+/** Aspetta, ma si interrompe subito se si tocca per saltare. */
+async function attesa(ms) {
+  const passo = 40;
+  for (let t = 0; t < ms; t += passo) {
+    if (saltaDistribuzione) return;
+    await sleep(Math.min(passo, ms - t));
+  }
+}
+
+/** Si risolve appena qualcuno tocca lo schermo per saltare. */
+function attendiSalto() {
+  return new Promise(async r => {
+    while (!saltaDistribuzione) await sleep(60);
+    r();
+  });
+}
+
+/** Le carte che arrivano in mano si vedono spuntare mentre volano. */
+function crescitaMano(quante, ogni) {
+  let k = 0;
+  return setInterval(() => {
+    if (k >= quante) return;
+    dealCount = ++k;
+    render();
+  }, ogni);
+}
+
 async function distribuisci() {
   busy = true;
   dealCount = 0;
+  saltaDistribuzione = false;
+  scartiNascosti = true;
   render();
-  for (let k = 1; k <= 11; k++) {
-    dealCount = k;
-    render();
-    await sleep(85);
+
+  if (senzaMoto()) {              // chi ha chiesto meno animazioni: dritti al punto
+    dealCount = null; dealing = false; busy = false; scartiNascosti = false; render();
+    return;
   }
-  await sleep(220);
-  dealCount = null;
-  dealing = false;
-  busy = false;
-  render();
+
+  const salta = () => { saltaDistribuzione = true; };
+  document.addEventListener('pointerdown', salta);
+
+  try {
+    /* 1. si mischia */
+    say('Si mischia il mazzo…'); render();
+    // il riferimento va preso DOPO il disegno: prima è un elemento già buttato via
+    const mazzo = elMazzo();
+    const rifMazzo = rett(mazzo);
+    if (mazzo) mazzo.classList.add('mischiando');
+    Suoni.suona('mischia');
+    await attesa(880);
+    if (mazzo) mazzo.classList.remove('mischiando');
+
+    /* 2. si alza: la parte di sopra si stacca e resta in aria */
+    say('Si alza il mazzo…'); render();
+    Suoni.suona('alza');
+    const alto = mazzettoInAria(rifMazzo, (rifMazzo ? rifMazzo.height : 50) + 12);
+    await attesa(400);
+
+    /* 3. i due pozzetti, una carta per volta presa da sotto la parte alzata */
+    say('Si fanno i pozzetti…'); render();
+    const daAlto = alto ? rett(alto) : rifMazzo;
+    const pozzi = [postoIn(elPozzetto('loro'), 24), postoIn(elPozzetto('mia'), 24)];
+    if (!saltaDistribuzione && pozzi[0] && pozzi[1]) {
+      const pezzi = [];
+      for (let i = 0; i < 11; i++) {
+        pezzi.push({ html: backHTML(), da: daAlto, a: pozzi[0] });
+        pezzi.push({ html: backHTML(), da: daAlto, a: pozzi[1] });
+      }
+      const suono = setInterval(() => Suoni.suona('dai'), 130);
+      await Promise.race([vola(pezzi, 240, 32), attendiSalto()]);
+      clearInterval(suono);
+    }
+
+    /* 4. le carte ai giocatori, una per uno, in giro */
+    if (alto) alto.remove();
+    say('Si danno le carte…'); render();
+    await attesa(150);
+    if (!saltaDistribuzione) {
+      const posti = [];
+      for (let p = 0; p < G.nPlayers; p++) {
+        posti.push(p === HUMAN ? postoInMano() : postoIn(elPosto(p), 24));
+      }
+      const pezzi = [];
+      for (let giro = 0; giro < 11; giro++) {
+        for (let p = 0; p < G.nPlayers; p++) pezzi.push({ html: backHTML(), da: rifMazzo, a: posti[p] });
+      }
+      const suono = setInterval(() => Suoni.suona('dai'), 120);
+      const cresce = crescitaMano(11, 36 * G.nPlayers);
+      await Promise.race([vola(pezzi, 230, 36), attendiSalto()]);
+      clearInterval(suono);
+      clearInterval(cresce);
+    }
+    dealCount = 11;
+    render();
+
+    /* 5. si gira la prima carta sul monte */
+    if (!saltaDistribuzione) {
+      say('');
+      await attesa(180);
+      const prima = G.discard[0];
+      if (prima) {
+        Suoni.suona('gira');
+        await Promise.race([
+          vola([{ html: cardHTML(prima), da: rifMazzo, a: postoIn(elScarti(), 40) }], 320),
+          attendiSalto(),
+        ]);
+      }
+    }
+  } finally {
+    document.removeEventListener('pointerdown', salta);
+    document.querySelectorAll('.alzata').forEach(e => e.remove());
+    saltaDistribuzione = false;
+    scartiNascosti = false;
+    dealCount = null;
+    dealing = false;
+    busy = false;
+    say('');
+    render();
+  }
 }
+
+/* Il computer non deve sembrare istantaneo: fra una mossa e l'altra si
+   prende il tempo che si prenderebbe una persona, e mai lo stesso — le
+   pause tutte uguali si notano più delle pause lunghe. */
+const PENSA = { pesca: 780, calata: 560, scarto: 720, dopo: 360 };
+const pensiero = base => sleep(base + Math.random() * base * 0.55);
 
 /** Il turno del computer, mostrato mossa per mossa invece che tutto insieme. */
 async function turnoComputer(p) {
@@ -1059,17 +1261,18 @@ async function turnoComputer(p) {
 
   say(`${G.names[p]} pesca…`);
   render();
-  await sleep(320);
+  await pensiero(PENSA.pesca);
   const daMazzo = rett(elMazzo()), daScarti = rett(elScarti()), alPosto = rett(elPosto(p));
   const primaScarti = G.discard.length;
   E.aiDraw(G, p);
   const dalMonte = G.discard.length < primaScarti;
   const quante = dalMonte ? Math.min(primaScarti, 5) : 1;
+  Suoni.suona('carta');
   await vola(Array.from({ length: quante }, () => ({
     html: backHTML(), da: dalMonte ? daScarti : daMazzo, a: alPosto,
   })), 280);
   render();
-  await sleep(240);
+  await sleep(PENSA.dopo);
 
   let guard = 0;
   while (guard++ < 45) {
@@ -1079,11 +1282,12 @@ async function turnoComputer(p) {
     const mossa = E.aiOneMeld(G, p);
     if (!mossa) break;
     say(mossa.t === 'add' ? `${G.names[p]} attacca una carta` : `${G.names[p]} cala ${mossa.n} carte`);
+    Suoni.suona('cala');
     await vola(Array.from({ length: Math.min(mossa.n, 5) }, () => ({
       html: backHTML(), da: dalPosto, a: aiGiochi,
     })), 260);
     render();
-    await sleep(240);
+    await pensiero(PENSA.calata);
     await controllaPozzetto(prima);
     if (G.handOver) return;
   }
@@ -1091,18 +1295,20 @@ async function turnoComputer(p) {
 
   say(`${G.names[p]} scarta…`);
   render();
-  await sleep(260);
+  await pensiero(PENSA.scarto);
   const prima = G.teams[squadra].pozzetto;
   const daMano = rett(elPosto(p)), alMonte = rett(elScarti());
   E.aiDiscard(G, p);
   // la carta scartata è quella in cima al monte: ora si può mostrare scoperta
+  Suoni.suona('gira');
   await vola([{ html: cardHTML(G.discard[0]), da: daMano, a: alMonte }], 280);
   render();
-  await sleep(200);
+  await sleep(PENSA.dopo);
   await controllaPozzetto(prima);
 }
 
 async function runAI() {
+  if (!G.handOver && dealCount === null) annuncio('Tocca a ' + G.names[G.turn], false);
   busy = true;
   while (!G.handOver && G.turn !== HUMAN) {
     const p = G.turn;
@@ -1114,10 +1320,11 @@ async function runAI() {
   save();
   render();
   if (G.handOver) finishHand();
+  else annunciaTurno();
 }
 
 /* ---------- Finestre ---------- */
-function closeModal() { $('overlay').innerHTML = ''; }
+function closeModal() { $('overlay').innerHTML = ''; Suoni.abbassa(false); }
 function modal(title, sub, body, footer) {
   $('overlay').innerHTML = `<div class="veil"><div class="modal" role="dialog" aria-modal="true">
     <div class="mh"><h2>${title}</h2>${sub ? `<p>${sub}</p>` : ''}</div>
@@ -1145,6 +1352,8 @@ function segnaRisultati() {
 
 function finishHand() {
   segnaRisultati();
+  Suoni.suona(G.finished ? (G.winner === MIA() ? 'vittoria' : 'sconfitta') : 'fineMano');
+  Suoni.abbassa(true);
   save();                 // così "Riprendi" non ripropone una partita già finita
   const d = G.result.detail;
   const row = (label, f) => `<tr><td>${label}</td><td>${f(d[MIA()])}</td><td>${f(d[LORO()])}</td></tr>`;
@@ -1184,12 +1393,34 @@ function finishHand() {
       E.nextHand(G); sel.clear(); say(''); dealing = true; handOrder = [];
       save();
       await distribuisci();
+      annunciaTurno();
       if (!online && G.turn !== HUMAN) await runAI();
     };
   }
 }
 
 /* ---------- Finestre del gioco online ---------- */
+
+/** Musica ed effetti: due interruttori, niente di più. */
+function suonoDialog() {
+  const riga = (id, titolo, sotto, acceso) => `
+    <button class="btn" id="${id}" style="text-align:left; display:flex; align-items:center; gap:12px">
+      <span style="font-size:20px; width:24px">${acceso ? '🔊' : '🔇'}</span>
+      <span style="flex:1 1 auto"><b>${titolo}</b><br><small style="opacity:.7">${sotto}</small></span>
+      <b>${acceso ? 'ON' : 'OFF'}</b>
+    </button>`;
+  modal('Suoni', 'Si sentono meglio con gli auricolari',
+    `<div class="opts">
+       ${riga('s-musica', 'Musica di sottofondo', 'Quattro accordi lenti, molto in basso', Suoni.musica)}
+       ${riga('s-effetti', 'Suoni delle carte', 'Mischiata, carte che si posano, avviso del tuo turno', Suoni.effetti)}
+       <p class="home-nota" style="margin-top:10px">Sono costruiti dall'app sul momento: non c'è
+         nessun file da scaricare e funzionano anche senza connessione.</p>
+     </div>`,
+    `<button class="btn primary" id="m-ok">Chiudi</button>`);
+  $('m-ok').onclick = closeModal;
+  $('s-musica').onclick = () => { Suoni.sveglia(); Suoni.cambiaMusica(); closeModal(); suonoDialog(); mostraHome(); };
+  $('s-effetti').onclick = () => { Suoni.sveglia(); Suoni.cambiaEffetti(); closeModal(); suonoDialog(); mostraHome(); };
+}
 
 /* ---------- Finestre del conto e delle statistiche ---------- */
 
@@ -1566,6 +1797,8 @@ function menuDialog() {
     `<div class="opts">
        <button class="btn" id="m-annulla" style="text-align:left" ${siPuo ? '' : 'disabled'}>
          Annulla l'ultima calata${siPuo ? '' : ` <small style="opacity:.6">(${online ? 'non online' : 'niente da annullare'})</small>`}</button>
+       <button class="btn" id="m-musica" style="text-align:left">Musica: <b>${Suoni.musica ? 'accesa' : 'spenta'}</b></button>
+       <button class="btn" id="m-effetti" style="text-align:left">Suoni delle carte: <b>${Suoni.effetti ? 'accesi' : 'spenti'}</b></button>
        <button class="btn" id="m-tema" style="text-align:left">Cambia tema chiaro / scuro</button>
        <button class="btn" id="m-reg" style="text-align:left">Regolamento ufficiale</button>
        <button class="btn" id="m-nuova" style="text-align:left">Nuova partita</button>
@@ -1575,6 +1808,8 @@ function menuDialog() {
     `<button class="btn ghost" id="m-ok">Chiudi</button>`);
   $('m-ok').onclick = closeModal;
   $('m-annulla').onclick = () => { closeModal(); annullaCalata(); };
+  $('m-musica').onclick = () => { Suoni.cambiaMusica(); closeModal(); menuDialog(); };
+  $('m-effetti').onclick = () => { Suoni.cambiaEffetti(); closeModal(); menuDialog(); };
   $('m-tema').onclick = () => { cambiaTema(); closeModal(); };
   $('m-reg').onclick = () => { closeModal(); rulesDialog(); };
   $('m-nuova').onclick = () => { closeModal(); newGameDialog(); };
@@ -1674,6 +1909,7 @@ window.__burraco = {
   rete: Rete,
   conto: Conto,
   stat: Stat,
+  suoni: Suoni,
   online: () => online,
   posto: () => HUMAN,
   nuovaPartita: (mode, target) => {

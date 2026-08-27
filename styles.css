@@ -80,24 +80,29 @@ html, body{height:100%; overflow:hidden}
    perché la colonna dei mazzi lì non serve a niente */
 .tavolo{display:flex; flex:1 1 auto; min-height:0}
 .campo{flex:1 1 auto; min-width:0; min-height:0; display:flex; flex-direction:column}
+
+/* ── La fascia in mezzo ────────────────────────────────────────
+   Attraversa tutto lo schermo e divide i due campi: sopra i loro
+   giochi, sotto i vostri. Dentro ci stanno il tallone e il monte
+   scarti stesi in orizzontale, e in fondo i due pozzetti.
+   Va tenuta stretta: ogni pixel qui è un pixel in meno per le carte. */
 .mazzi{
-  flex:0 0 auto; display:flex; flex-direction:column;
-  align-items:center; justify-content:space-between; gap:10px;
-  padding:8px 10px; border-left:1px solid var(--felt-line);
+  flex:0 0 auto; display:flex; align-items:center; gap:12px;
+  padding:5px 8px; min-width:0;
+  border-top:1px solid var(--felt-line); border-bottom:1px solid var(--felt-line);
   background:var(--felt-hole);
+  --cw:44px;
 }
-/* tallone e scarti sono i due che si toccano a ogni turno: ben staccati,
-   perché sbagliare mazzo costa il turno */
-/* in cima alla colonna i due pulsanti, poi i mazzi nell'ordine del tavolo */
-.btn.mini.colonna{
-  width:100%; padding:4px 2px; font-size:10px; letter-spacing:.04em;
-  border-color:var(--felt-line); color:var(--felt-soft); background:rgba(0,0,0,.18);
-}
-.btn.mini.colonna[data-a="menu"]{font-size:15px; line-height:1; padding:2px}
-.btn.mini.colonna:hover:not(:disabled){border-color:var(--accent-2); color:var(--felt-ink)}
-.mazzi .pile[data-act="stock"]{margin-top:auto}
-.mazzi .pile.scartiera{margin-bottom:auto}
-.mazzi .pile[data-act="stock"] + .pile.scartiera{margin-top:22px}
+/* le misure vanno messe sulla pila: ".pile" più avanti dichiara un --cw suo,
+   che vincerebbe sull'ereditarietà della fascia */
+.mazzi .pile{gap:2px; --cw:44px}
+.mazzi .pozzetti .pile{--cw:26px}
+.mazzi .pile[data-act="stock"]{flex:0 0 auto}
+/* il monte si prende tutta la larghezza che avanza: è lì che si guarda */
+.mazzi .pile.scartiera{flex:1 1 auto; min-width:0; align-items:flex-start}
+.mazzi .pile.scartiera .pilewrap{width:100%}
+.mazzi .pozzetti{display:flex; gap:6px; flex:0 0 auto; --cw:26px}
+.mazzi .pozzetti .cap{font-size:7.5px; letter-spacing:.06em}
 .posto-lato{
   flex:0 0 auto; display:flex; align-items:center; padding:0 8px;
   border-left:1px solid var(--felt-line);
@@ -158,7 +163,7 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 
 /* ── Il tavolo ─────────────────────────────────────────────── */
 .board{
-  height:100%; min-height:0;
+  height:100%; min-height:0; position:relative;   /* l'annuncio del turno ci si appoggia */
   padding:0; color:var(--felt-ink);
   background:var(--felt-2);
   background-image:
@@ -319,6 +324,28 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 }
 @media (prefers-reduced-motion:reduce){ .card.in-volo{display:none} }
 
+/* ── La distribuzione ──────────────────────────────────────────
+   Il mazzo che si mischia trema appena; il mazzetto alzato resta in
+   aria sopra il tallone finché non sono fatti i pozzetti. */
+@keyframes mischiata{
+  0%,100%{transform:translate(0,0) rotate(0)}
+  15%{transform:translate(-3px,-2px) rotate(-2.5deg)}
+  30%{transform:translate(3px,1px) rotate(2deg)}
+  45%{transform:translate(-2px,2px) rotate(-1.5deg)}
+  60%{transform:translate(3px,-1px) rotate(2.5deg)}
+  80%{transform:translate(-2px,1px) rotate(-1deg)}
+}
+.pilewrap.mischiando{animation:mischiata .28s linear infinite}
+.alzata{
+  position:fixed; z-index:60; pointer-events:none;
+  animation:alzo .32s cubic-bezier(.2,.9,.3,1) backwards;
+}
+.alzata .card{position:absolute; inset:0; width:100%; height:100%}
+.alzata .card:nth-child(2){transform:translate(1.5px,-1.5px) rotate(1.2deg)}
+.alzata .card:nth-child(3){transform:translate(3px,-3px) rotate(2.4deg)}
+@keyframes alzo{ from{transform:translateY(60%); opacity:0} to{transform:none; opacity:1} }
+@media (prefers-reduced-motion:reduce){ .alzata{display:none} }
+
 .card.ghost{
   position:fixed; z-index:60; pointer-events:none; margin:0 !important;
   transform:translate(-50%,-50%) rotate(-3deg) scale(1.08);
@@ -394,11 +421,9 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 .meld.target:hover{background:rgba(0,0,0,.38)}
 .empty-note{font-size:12.5px; color:var(--felt-soft); font-style:italic; padding:8px 2px; align-self:center}
 
-/* ── Centro tavolo ─────────────────────────────────────────── */
-/* stato a sinistra, mazzi al centro, pozzetti a destra */
-/* i pozzetti si guardano una volta a mano: stanno più piccoli del tallone */
-.mazzi .pile{--cw:62px}
-.mazzi .pile.pozzetto{--cw:40px}
+/* ── Mazzi ─────────────────────────────────────────────────── */
+/* i pozzetti si guardano una volta a mano: stanno più piccoli del tallone,
+   e la misura la eredita la fascia (vedi ".mazzi" più su) */
 .pile{display:flex; flex-direction:column; align-items:center; gap:6px; --cw:56px}
 .pile .cap{font-size:10.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--felt-soft); text-align:center}
 .pile .cap b{display:block; font-size:15px; letter-spacing:0; color:var(--felt-ink); font-variant-numeric:tabular-nums}
@@ -416,6 +441,34 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 }
 .pile.bersaglio .cap{color:var(--accent-2); font-weight:700}
 
+/* ── L'annuncio del turno ──────────────────────────────────────
+   Una scritta grande in mezzo al tavolo quando il turno cambia.
+   Non intercetta i tocchi: il primo tocco deve arrivare alle carte,
+   ed è lo stesso che fa sparire la scritta. */
+.annuncio{
+  position:absolute; inset:0; z-index:20; pointer-events:none;
+  display:flex; align-items:center; justify-content:center;
+}
+.annuncio span{
+  font-family:"Bodoni Moda",Didot,Georgia,serif; font-weight:700;
+  font-size:clamp(28px,8vw,44px); letter-spacing:-.01em; text-align:center;
+  color:var(--felt-ink); padding:14px 26px; border-radius:4px;
+  background:rgba(10,22,16,.72); border:1px solid var(--felt-line);
+  box-shadow:0 10px 30px rgba(0,0,0,.35);
+  animation:annuncioEntra .42s cubic-bezier(.15,.9,.25,1) both;
+}
+.annuncio.tuo span{color:var(--accent-2); border-color:var(--accent-2)}
+.annuncio.via span{animation:annuncioEsce .3s ease-in both}
+@keyframes annuncioEntra{
+  from{opacity:0; transform:scale(.86) translateY(10px)}
+  to{opacity:1; transform:none}
+}
+@keyframes annuncioEsce{
+  from{opacity:1; transform:none}
+  to{opacity:0; transform:scale(1.06) translateY(-8px)}
+}
+@media (prefers-reduced-motion:reduce){ .annuncio{display:none} }
+
 /* ── È il tuo turno ────────────────────────────────────────── */
 .board.turno{border-color:var(--accent)}
 .board.turno .zone.mano{
@@ -426,6 +479,14 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 .board:not(.turno) .hand{opacity:.68}
 .board:not(.turno) .hand .card{cursor:default}
 
+/* In alto a destra i due comandi: piccoli, sempre nello stesso posto. */
+.comandi{flex:0 0 auto; display:flex; flex-direction:column; gap:3px; margin-left:auto}
+.comandi .btn.mini{
+  padding:3px 7px; font-size:10px; letter-spacing:.04em; min-width:44px;
+  border-color:var(--felt-line); color:var(--felt-soft); background:rgba(0,0,0,.18);
+}
+.comandi .btn.mini[data-a="menu"]{font-size:14px; line-height:1.1; padding:1px 7px}
+.comandi .btn.mini:hover:not(:disabled){border-color:var(--accent-2); color:var(--felt-ink)}
 .zone.posti{display:flex; align-items:center; gap:10px; flex-wrap:nowrap}
 .zone.posti .seats{flex:0 1 auto; min-width:0; justify-content:flex-start}
 /* nome e numero bastano: la parola "carte" si capisce da sola */
@@ -450,13 +511,12 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
   border-radius:4px; background:rgba(0,0,0,.16);
 }
 .pilewrap{position:relative}
-/* Il monte scarti mostra le ultime carte, così si vede cosa c'è sotto.
-   In colonna, non di fianco: la fascia dei mazzi è stretta e un ventaglio
-   orizzontale sbordava sul tavolo. L'ultima scartata resta in fondo, intera. */
-.scarti{display:flex; flex-direction:column; align-items:center}
-/* nella colonna dei mazzi il numeretto sulla carta dice già quante sono */
-.mazzi .scarti .altre{display:none}
-.scarti .card + .card{margin-top:calc(var(--cw) * -1.08)}
+/* Il monte scarti steso in orizzontale, dentro la fascia centrale: si
+   vedono le ultime nove carte, l'ultima a destra e intera. Le carte si
+   sovrappongono quanto serve per stare nella larghezza che c'è. */
+.scarti{display:flex; align-items:flex-start; justify-content:flex-start; min-width:0}
+.scarti .card{flex:0 0 auto}
+.scarti .card + .card{margin-left:calc(var(--cw) * -0.42)}
 .scarti .altre{
   align-self:center; font-size:11px; font-weight:700; color:var(--felt-soft);
   margin-right:4px; font-variant-numeric:tabular-nums;
@@ -687,19 +747,18 @@ header.top{flex:0 0 auto; align-items:center; gap:8px; flex-wrap:nowrap}
 .posto-lato .who .unita{display:none}
 .posto-lato .who .sep{display:block; height:0; overflow:hidden}
 
-/* la colonna dei mazzi, stretta, di fianco al campo */
-.mazzi{grid-template-columns:auto; gap:10px; padding:6px 4px}
+/* la fascia in mezzo, sul telefono: più stretta che si può */
+.mazzi{gap:8px; padding:4px 6px}
 .pile{gap:4px}
 .mazzi .pile{--cw:40px}
-.mazzi .pile.pozzetto{--cw:28px}
-.mazzi .pile .cap{font-size:7.5px; letter-spacing:.04em; max-width:7ch}
-.mazzi .pile .cap b{font-size:11px}
-.mazzi .pile.dim .cap b{font-size:8px; letter-spacing:.1em; text-transform:uppercase}
+.mazzi .pozzetti{gap:4px}
+.mazzi .pozzetti .pile{--cw:24px}
+.mazzi .pile .cap{font-size:7.5px; letter-spacing:.04em}
 .pilewrap .count{right:-5px; bottom:-5px; min-width:18px; font-size:9.5px; padding:0 4px}
 .pile .cap{font-size:9px; letter-spacing:.08em}
 .pile .cap b{font-size:13px}
 .state .now{font-size:16px}
-.scarti .card + .card{margin-left:0; margin-top:calc(var(--cw) * -1.05)}
+.scarti .card + .card{margin-left:calc(var(--cw) * -0.46)}
 .pile .cap{white-space:nowrap}
 .pilewrap .count{right:-5px; bottom:-5px; min-width:19px; font-size:10px}
 
