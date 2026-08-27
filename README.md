@@ -6,7 +6,7 @@ Burraco italiano con le regole ufficiali: **contro il computer** (uno contro uno
 oppure **online in due**, con un codice di quattro lettere da dettare all'altro.
 Gira nel browser, si installa sul telefono e contro il computer funziona anche senza connessione.
 
-**Versione pubblicata:** `burraco-v22` — 26 agosto 2026
+**Versione pubblicata:** `burraco-v23` — 26 agosto 2026
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server, nessun account
 a pagamento, nessun dominio da comprare.
 
@@ -23,6 +23,32 @@ a pagamento, nessun dominio da comprare.
 ## Novità
 
 Le voci più recenti stanno in alto. Ogni riga corrisponde a una versione di `sw.js`.
+
+### `burraco-v23` — 26 agosto 2026
+
+**Il conto del giocatore e le statistiche.**
+
+- **Statistiche**, dalla schermata iniziale: partite giocate, vinte e perse con la percentuale,
+  mani giocate e quante hai chiuso tu, burrachi divisi in puliti, semipuliti e sporchi, punti
+  totali, media a mano, mano migliore e vittorie di fila con il record.
+  **Si contano sempre**, anche contro il computer e anche senza connessione: la partita in
+  treno vale come le altre.
+- **Conto con email e password**, facoltativo. Serve a una cosa sola: portarti dietro le
+  statistiche e il nome da un telefono all'altro. Senza conto si gioca esattamente come prima.
+- **Quando apri il conto**, le partite già giocate su quel telefono ci entrano dentro: non si
+  ricomincia da zero.
+- **La password non passa dall'app.** La spedisce al servizio, che la conserva cifrata; sul
+  telefono restano solo i due gettoni della sessione, che scadono e si rinnovano da soli.
+  Un collaudo verifica proprio questo: dopo l'accesso, nel telefono la password non c'è.
+- Il nome del conto è anche quello che vede l'altro quando giochi online.
+
+Provato da `contotest.js`: si apre un conto, si gioca una partita intera, si controlla che i
+numeri salgano, si entra da un secondo telefono e si ritrova tutto, si sbaglia la password
+apposta e si verifica che non sia rimasta scritta da nessuna parte.
+
+Un dettaglio tecnico che vale la pena sapere: nel file unico (`burraco.html`) i moduli
+diventano un blocco solo, quindi due costanti con lo stesso nome in moduli diversi
+spegnerebbero la pagina. Adesso `build.js` se ne accorge e si ferma.
 
 ### `burraco-v22` — 26 agosto 2026
 
@@ -258,7 +284,7 @@ Correzioni trovate col collaudo automatico su sei misure di schermo, dal telefon
 
 ---
 
-## Com'è fatto il gioco online
+## Com'è fatto il gioco online (e il conto)
 
 Non c'è niente da configurare: l'app è già collegata. Per curiosità, il giro è questo.
 
@@ -267,7 +293,8 @@ Non c'è niente da configurare: l'app è già collegata. Per curiosità, il giro
 | Servizio | Supabase, progetto `burraco`, piano gratuito, server in Germania |
 | Tabelle | `partite` (codice, seme del mazzo, nomi) e `mosse` (codice, numero, posto, mossa) |
 | Come si parla | cinque funzioni SQL: `apri_tavolo`, `siediti`, `guarda_tavolo`, `manda_mossa`, `leggi_mosse` |
-| Nell'app | `src/rete.js`, una settantina di righe, solo `fetch` |
+| Nell'app | `src/rete.js` e `src/conto.js`, solo `fetch`, nessuna libreria |
+| Conto | email e password gestite da Supabase Auth; nel database ci sono solo `profili` (il nome al tavolo) e `statistiche` |
 
 Le tabelle non si toccano mai direttamente: senza il codice del tavolo non si ottiene niente,
 nemmeno l'elenco dei tavoli aperti. Due mosse non possono prendere lo stesso numero — ci pensa
@@ -276,13 +303,29 @@ due giorni vengono cancellati, e due volte a settimana il workflow `sveglia.yml`
 servizio: il piano gratuito mette in pausa i progetti fermi da una settimana, e senza quella
 bussata il gioco online smetterebbe di funzionare fino a riaccenderlo a mano.
 
-Per i collaudi c'è `tools/finto-supabase.js`, che parla la stessa lingua ma tiene tutto in
-memoria: così la partita fra due telefoni si prova anche su una macchina senza internet.
+Le statistiche e il profilo si toccano solo attraverso funzioni che guardano da sole chi sta
+chiamando: non c'è modo di chiedere o cambiare i numeri di un altro giocatore.
+
+Per i collaudi c'è `tools/finto-supabase.js`, che parla la stessa lingua — registrazione e
+accesso compresi — ma tiene tutto in memoria: così la partita fra due telefoni e il giro del
+conto si provano anche su una macchina senza internet.
+
+> **Una cosa da fare una volta sola, nel pannello Supabase.** In *Authentication → Sign In /
+> Providers → Email*, se **Confirm email** è acceso, chi si registra deve prima aprire il
+> collegamento che gli arriva per posta — e la posta di prova di Supabase è molto limitata.
+> Per un uso fra amici conviene spegnerlo; per aprire al pubblico conviene invece lasciarlo
+> acceso e collegare un servizio di posta vero (SMTP), che serve comunque per il "password
+> dimenticata". L'app funziona in tutti e due i casi: se la conferma è richiesta, dopo la
+> registrazione lo dice e invita a controllare la posta.
 
 ---
 
 ## Da fare
 
+- **Un tasto «segnala un problema»** dentro l'app, che mandi schermo, versione e ultime mosse:
+  è la cosa che serve per far provare l'app a venti persone e capire cosa si rompe davvero.
+- **Informativa privacy e condizioni d'uso**: da quando si raccoglie un'email sono obbligatorie.
+- **Trova avversario** per chi non ha un amico a portata di codice.
 - **Arbitro sul server**, se un giorno servirà: oggi il motore gira sui telefoni, quindi fra
   amici è onesto ma non a prova di furbo.
 - **Online anche a coppie** (quattro posti, con chi manca coperto dal computer).
@@ -355,6 +398,8 @@ styles.css               stile, tema chiaro e scuro (una pianta sola, tarata sul
 src/engine.js            motore: regole, combinazioni, punteggi, computer, registro delle mosse
 src/ui.js                interfaccia: disegno del tavolo, clic, finestre, animazioni, online
 src/rete.js              gioco online: apre il tavolo, manda e legge le mosse
+src/conto.js             registrazione e accesso, sessione sul telefono
+src/statistiche.js       il conto delle partite, anche senza conto e senza rete
 sw.js                    service worker: fa funzionare l'app senza connessione
 manifest.webmanifest     dati per l'installazione sul telefono
 icons/                   icone dell'app

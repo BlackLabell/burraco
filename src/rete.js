@@ -16,6 +16,11 @@ const CONFIG = (typeof window !== 'undefined' && window.__RETE__) || {};
 const URL_BASE = CONFIG.url || 'https://cpwodjykbfmyykybbtzm.supabase.co';
 const CHIAVE = CONFIG.chiave || 'sb_publishable_tnIBNo_liLN-ELDBf0mWdQ_rcv60A4O';
 
+/* L'indirizzo del servizio lo usa anche il modulo del conto: sta scritto qui
+   una volta sola. La chiave è pubblica per costruzione — non apre niente da
+   sola, sono le regole del database a decidere cosa si può fare. */
+export const SERVIZIO = { url: URL_BASE, chiave: CHIAVE };
+
 /* Ogni quanto si va a vedere se l'altro ha mosso. Il burraco è a turni:
    un secondo scarso non si sente, e tiene i consumi a zero. */
 export const RITMO = CONFIG.ritmo || 1200;

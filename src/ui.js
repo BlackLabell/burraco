@@ -3,6 +3,8 @@
    ============================================================ */
 import E from './engine.js';
 import Rete, { RITMO } from './rete.js';
+import Conto from './conto.js';
+import Stat, { riassunto } from './statistiche.js';
 
 const $ = id => document.getElementById(id);
 
@@ -24,6 +26,10 @@ const MIA = () => (G ? G.teamOf[HUMAN] : 0);
 const LORO = () => 1 - MIA();
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+/* Il nome lo scrive la persona: prima di rimetterlo nella pagina va disinnescato. */
+const esc = t => String(t == null ? '' : t)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 /* ---------- Persistenza (best effort) ---------- */
 const SAVE = 'burraco.stato.v1';
@@ -559,20 +565,41 @@ function mostraHome() {
           <b>Gioca contro il computer</b><small>Uno contro uno o a coppie, a 2005 o 1005 punti</small></button>
         <button class="btn grande" data-h="online">
           <b>Gioca online</b><small>In due, con un codice di quattro lettere. Niente iscrizione.</small></button>
+        <button class="btn grande" data-h="stat">
+          <b>Le tue statistiche</b><small>${riassuntoBreve()}</small></button>
         <button class="btn grande" data-h="regole">
           <b>Regolamento</b><small>Il codice di gara, articolo per articolo, con le fonti</small></button>
       </div>
       <div class="home-piede">
-        <label class="campo-nome">
-          <span>Come ti chiami</span>
-          <input id="home-nome" type="text" maxlength="14" placeholder="Tu"
-                 value="${nome.replace(/"/g, '&quot;')}" autocomplete="off" spellcheck="false">
-        </label>
+        ${Conto.dentro
+          ? `<div class="campo-nome"><span>Il tuo conto</span>
+               <div class="conto-riga"><b>${esc(Conto.nome || 'Giocatore')}</b>
+                 <button class="btn ghost mini" data-h="conto">Gestisci</button></div>
+             </div>`
+          : `<label class="campo-nome">
+               <span>Come ti chiami</span>
+               <input id="home-nome" type="text" maxlength="14" placeholder="Tu"
+                      value="${esc(nome)}" autocomplete="off" spellcheck="false">
+             </label>`}
         <button class="btn ghost mini" data-h="tema">Tema chiaro / scuro</button>
       </div>
-      <p class="home-nota">Niente registrazione: il nome resta sul telefono.
-        La partita si salva da sola e l'app funziona anche senza connessione.</p>
+      ${Conto.dentro
+        ? `<p class="home-nota">Sei nel tuo conto: le statistiche ti seguono su qualsiasi telefono.
+             Le partite contro il computer funzionano anche senza connessione.</p>`
+        : `<p class="home-nota">Si gioca anche senza conto: il nome e le statistiche restano sul
+             telefono. <button class="collegamento" data-h="conto">Apri un conto o entra nel tuo</button>
+             per ritrovarle ovunque.</p>`}
     </div>`;
+}
+
+/** Una riga sola di statistiche, per il tasto in prima pagina. */
+function riassuntoBreve() {
+  const r = riassunto(Conto.dentro && Conto.stat ? Conto.stat : Stat.dati);
+  if (!r.partite && !r.mani) return 'Ancora niente: la prima partita comincia adesso';
+  const pezzi = [`${r.partite} ${r.partite === 1 ? 'partita' : 'partite'}`];
+  if (r.partite) pezzi.push(`${r.vinte} vinte (${r.percentuale}%)`);
+  if (r.burrachi) pezzi.push(`${r.burrachi} ${r.burrachi === 1 ? 'burraco' : 'burrachi'}`);
+  return pezzi.join(' · ');
 }
 
 function nascondiHome() {
@@ -587,16 +614,21 @@ function nomeScelto() {
   return n || '';
 }
 
+/** Il nome che vedono gli altri: quello del conto se c'è, altrimenti quello scritto. */
+function nomeAlTavolo() {
+  return (Conto.dentro && Conto.nome) || nomeScelto();
+}
+
 function applicaNome() {
-  const n = nomeScelto();
-  saveNome(n);
+  const n = Conto.dentro ? Conto.nome : nomeScelto();
+  if (!Conto.dentro) saveNome(n);
   if (G && G.names) G.names[HUMAN] = n || 'Tu';
 }
 
-async function avviaPartita(mode, target) {
+async function avviaPartita(mode, target, seme) {
   chiudiOnline();
   HUMAN = 0;
-  G = E.newGame(mode, { target });
+  G = E.newGame(mode, seme ? { target, seed: seme } : { target });
   applicaNome();
   sel.clear(); say(''); dealing = true; handOrder = [];
   nascondiHome();
@@ -634,7 +666,7 @@ async function avviaOnline(partita, posto, mosse) {
   online = true;
   HUMAN = posto;
   G = E.newGame(partita.modo || '1v1', { target: partita.target || 2005, seed: Number(partita.seme) });
-  G.names = [Rete.nomi[0] || 'Chi ha aperto', Rete.nomi[1] || 'Chi è entrato'];
+  G.names = [esc(Rete.nomi[0]) || 'Chi ha aperto', esc(Rete.nomi[1]) || 'Chi è entrato'];
   applicaNome();
   sel.clear(); say(''); handOrder = []; busy = false; dealCount = null;
   nascondiHome();
@@ -749,6 +781,8 @@ function bindOnce() {
     if (b.dataset.h === 'riprendi') riprendiPartita();
     else if (b.dataset.h === 'nuova') newGameDialog();
     else if (b.dataset.h === 'online') onlineDialog();
+    else if (b.dataset.h === 'stat') statDialog();
+    else if (b.dataset.h === 'conto') contoDialog();
     else if (b.dataset.h === 'rientra') rientraOnline();
     else if (b.dataset.h === 'regole') rulesDialog();
     else if (b.dataset.h === 'tema') cambiaTema();
@@ -1090,7 +1124,28 @@ function modal(title, sub, body, footer) {
     <div class="mb">${body}</div><div class="mf">${footer}</div></div></div>`;
 }
 
+/* Il conto delle partite: si segna sul telefono sempre, e sul conto se
+   c'è. Una guardia per non contare due volte la stessa mano — finishHand
+   può passare di qui più di una volta se il tavolo si ridisegna. */
+function segnaRisultati() {
+  const chiave = `${G.seed}:${G.handNo}`;
+  if (G.__segnata === chiave) return;
+  G.__segnata = chiave;
+  const mio = G.result.detail[MIA()];
+  const burrachi = { pulito: 0, semipulito: 0, sporco: 0 };
+  for (const b of mio.burrachi || []) if (burrachi[b] !== undefined) burrachi[b]++;
+  Stat.mano(mio.total, !!mio.chiusura, burrachi);
+  Conto.segnaMano(mio.total, !!mio.chiusura, burrachi);
+  if (G.finished) {
+    const vinta = G.winner === MIA();
+    Stat.partita(vinta, online);
+    Conto.segnaPartita(vinta, online);
+  }
+}
+
 function finishHand() {
+  segnaRisultati();
+  save();                 // così "Riprendi" non ripropone una partita già finita
   const d = G.result.detail;
   const row = (label, f) => `<tr><td>${label}</td><td>${f(d[MIA()])}</td><td>${f(d[LORO()])}</td></tr>`;
   const sign = v => (v > 0 ? '+' : '') + v;
@@ -1136,6 +1191,166 @@ function finishHand() {
 
 /* ---------- Finestre del gioco online ---------- */
 
+/* ---------- Finestre del conto e delle statistiche ---------- */
+
+/** Registrazione e accesso. L'email serve per poter recuperare la password. */
+function contoDialog() {
+  if (Conto.dentro) return contoMioDialog();
+  modal('Il tuo conto', 'Serve solo per portarti dietro le statistiche',
+    `<div class="opts">
+       <label class="campo-nome"><span>Email</span>
+         <input id="c-email" type="email" autocomplete="email" inputmode="email"
+                spellcheck="false" placeholder="nome@esempio.it"></label>
+       <label class="campo-nome" style="margin-top:10px"><span>Password</span>
+         <input id="c-pass" type="password" autocomplete="current-password"
+                placeholder="almeno 8 caratteri"></label>
+       <label class="campo-nome" id="c-nome-riga" hidden style="margin-top:10px"><span>Nome al tavolo</span>
+         <input id="c-nome" type="text" maxlength="14" autocomplete="off"
+                spellcheck="false" placeholder="${esc(loadNome() || 'Giocatore')}"></label>
+       <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap">
+         <button class="btn primary" id="c-entra" style="flex:1 1 40%">Entra</button>
+         <button class="btn" id="c-registra" style="flex:1 1 40%">Apri un conto</button>
+       </div>
+       <p class="home-nota" id="c-avviso" style="margin-top:12px">La password la custodisce il
+         servizio, cifrata: l'app non la vede e non la salva. Senza conto si gioca lo stesso.</p>
+     </div>`,
+    `<button class="btn ghost" id="m-ok">Chiudi</button>`);
+  $('m-ok').onclick = closeModal;
+
+  const avviso = (t, err) => {
+    const el = $('c-avviso'); if (!el) return;
+    el.textContent = t; el.style.color = err ? 'var(--red)' : '';
+  };
+  const campi = () => ({
+    email: ($('c-email').value || '').trim(),
+    pass: $('c-pass').value || '',
+    nome: ($('c-nome') ? $('c-nome').value : '').trim(),
+  });
+  const controlla = ({ email, pass }) => {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { avviso('Scrivi un\'email valida.', true); return false; }
+    if (pass.length < 8) { avviso('La password deve avere almeno 8 caratteri.', true); return false; }
+    return true;
+  };
+  const occupato = si => { $('c-entra').disabled = si; $('c-registra').disabled = si; };
+
+  $('c-entra').onclick = async () => {
+    const c = campi(); if (!controlla(c)) return;
+    occupato(true); avviso('Entro…');
+    try {
+      await Conto.entra(c.email, c.pass);
+      await dopoAccesso();
+    } catch (e) { occupato(false); avviso(e.message, true); }
+  };
+
+  $('c-registra').onclick = async () => {
+    // il primo tocco fa comparire il campo del nome, il secondo registra
+    const riga = $('c-nome-riga');
+    if (riga.hidden) {
+      riga.hidden = false;
+      $('c-registra').textContent = 'Crea il conto';
+      avviso('Scegli il nome che vedranno gli altri al tavolo, poi tocca di nuovo.');
+      $('c-nome').focus();
+      return;
+    }
+    const c = campi(); if (!controlla(c)) return;
+    occupato(true); avviso('Apro il conto…');
+    try {
+      const r = await Conto.registrati(c.email, c.pass, c.nome || loadNome() || null);
+      if (r.daConfermare) {
+        occupato(false);
+        avviso('Conto creato. Ti è arrivata un\'email di conferma: apri il collegamento, poi torna qui ed entra.');
+        return;
+      }
+      await dopoAccesso();
+    } catch (e) { occupato(false); avviso(e.message, true); }
+  };
+}
+
+/** Appena dentro: si offre di portarsi le partite già giocate sul telefono. */
+async function dopoAccesso() {
+  if (Stat.daPortare()) {
+    try {
+      await Conto.portaStorico(Stat.dati);
+      Stat.segnaPortate();
+    } catch (e) { /* pazienza: le statistiche locali restano dove sono */ }
+  }
+  closeModal();
+  mostraHome();
+  statDialog();
+}
+
+function contoMioDialog() {
+  const r = riassunto(Conto.stat || Stat.dati);
+  modal('Il tuo conto', esc(Conto.email || ''),
+    `<div class="opts">
+       <label class="campo-nome"><span>Nome al tavolo</span>
+         <input id="c-nome2" type="text" maxlength="14" value="${esc(Conto.nome)}"
+                autocomplete="off" spellcheck="false"></label>
+       <button class="btn" id="c-salva" style="margin-top:10px">Salva il nome</button>
+       <p class="home-nota" id="c-avviso2" style="margin-top:12px">
+         ${r.partite} partite e ${r.mani} mani sono al sicuro nel conto.</p>
+       <button class="btn ghost" id="c-esci" style="margin-top:14px">Esci dal conto su questo telefono</button>
+     </div>`,
+    `<button class="btn primary" id="m-ok">Chiudi</button>`);
+  $('m-ok').onclick = closeModal;
+  const avviso = (t, err) => { $('c-avviso2').textContent = t; $('c-avviso2').style.color = err ? 'var(--red)' : ''; };
+  $('c-salva').onclick = async () => {
+    $('c-salva').disabled = true; avviso('Salvo…');
+    try {
+      await Conto.cambiaNome(($('c-nome2').value || '').trim());
+      avviso('Fatto: al tavolo ti chiamerai ' + Conto.nome + '.');
+      mostraHome();
+    } catch (e) { avviso(e.message, true); }
+    $('c-salva').disabled = false;
+  };
+  $('c-esci').onclick = () => {
+    Conto.esci();
+    closeModal();
+    mostraHome();
+  };
+}
+
+/** Le statistiche, con le percentuali già fatte. */
+function statDialog() {
+  const dalConto = Conto.dentro && Conto.stat;
+  const r = riassunto(dalConto ? Conto.stat : Stat.dati);
+  const riga = (voce, valore, nota) =>
+    `<tr><td>${voce}</td><td class="n">${valore}</td><td class="nota">${nota || ''}</td></tr>`;
+  const vuoto = !r.partite && !r.mani;
+
+  const corpo = vuoto
+    ? `<p class="home-nota">Non hai ancora finito una mano. Le statistiche si riempiono da sole
+         mentre giochi, anche contro il computer e anche senza connessione.</p>`
+    : `<table class="sheet stat">
+         ${riga('Partite giocate', r.partite, r.online ? `di cui ${r.online} online` : 'tutte contro il computer')}
+         ${riga('Vinte', r.vinte, r.partite ? r.percentuale + '%' : '')}
+         ${riga('Perse', r.perse, '')}
+         ${r.online ? riga('Vinte online', r.vinteOnline, r.percOnline + '%') : ''}
+         <tr class="stacco"><td colspan="3"></td></tr>
+         ${riga('Mani giocate', r.mani, '')}
+         ${riga('Chiuse da te', r.chiusure, r.mani ? r.percChiusure + '%' : '')}
+         ${riga('Burrachi', r.burrachi, `${r.puliti} puliti · ${r.semi} semipuliti · ${r.sporchi} sporchi`)}
+         <tr class="stacco"><td colspan="3"></td></tr>
+         ${riga('Punti totali', r.punti.toLocaleString('it-IT'), '')}
+         ${riga('Punti a mano', r.mediaMano, '')}
+         ${riga('Mano migliore', r.migliorMano, '')}
+         ${riga('Vittorie di fila', r.striscia, r.migliorStriscia ? 'record: ' + r.migliorStriscia : '')}
+       </table>`;
+
+  const pieDove = dalConto
+    ? `<p class="home-nota" style="margin-top:12px">Salvate nel conto di
+         <b>${esc(Conto.nome)}</b>: le ritrovi su qualsiasi telefono.</p>`
+    : `<p class="home-nota" style="margin-top:12px">Salvate su questo telefono. Se
+         <button class="collegamento" id="s-conto">apri un conto</button> te le porti dietro
+         e non le perdi più.</p>`;
+
+  modal('Statistiche', dalConto ? 'Il tuo conto' : 'Su questo telefono',
+    corpo + pieDove,
+    `<button class="btn primary" id="m-ok">Chiudi</button>`);
+  $('m-ok').onclick = closeModal;
+  if ($('s-conto')) $('s-conto').onclick = () => { closeModal(); contoDialog(); };
+}
+
 function onlineDialog() {
   modal('Gioca online', 'In due, dallo stesso tavolo o da due città',
     `<div class="opts">
@@ -1153,11 +1368,11 @@ function onlineDialog() {
      </div>`,
     `<button class="btn ghost" id="m-ok">Chiudi</button>`);
   $('m-ok').onclick = closeModal;
-  const avviso = (t, err) => { $('o-avviso').textContent = t; $('o-avviso').style.color = err ? 'var(--bad, #d66)' : ''; };
+  const avviso = (t, err) => { $('o-avviso').textContent = t; $('o-avviso').style.color = err ? 'var(--red)' : ''; };
   $('o-apri').onclick = async () => {
     $('o-apri').disabled = true; avviso('Apro il tavolo…');
     try {
-      const p = await Rete.apri(nomeScelto() || 'Chi ha aperto');
+      const p = await Rete.apri(nomeAlTavolo() || 'Chi ha aperto');
       attesaDialog(p);
     } catch (e) {
       $('o-apri').disabled = false;
@@ -1169,7 +1384,7 @@ function onlineDialog() {
     if (codice.length !== 4) return avviso('Il codice è di quattro lettere.', true);
     $('o-entra').disabled = true; avviso('Entro al tavolo…');
     try {
-      const p = await Rete.entra(codice, nomeScelto() || 'Chi è entrato');
+      const p = await Rete.entra(codice, nomeAlTavolo() || 'Chi è entrato');
       const mosse = await Rete.tutte();
       closeModal();
       await avviaOnline(p, 1, mosse);
@@ -1430,8 +1645,16 @@ if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
 
 /* Si apre sulla schermata iniziale: da lì si riprende o si comincia.
    G resta pronto in memoria così i test e il salvataggio funzionano subito. */
+Stat.leggi();
 G = load() || E.newGame('1v1', { target: 2005 });
 mostraHome();
+
+/* Se c'era una sessione aperta si riprende, e in sottofondo si riallineano
+   nome e statistiche. Se la rete non c'è, pazienza: si gioca lo stesso. */
+if (Conto.leggi()) {
+  mostraHome();
+  Conto.aggiorna().then(() => mostraHome()).catch(() => { });
+}
 
 /* Aggancio per i test automatici (non serve al gioco). */
 window.__burraco = {
@@ -1445,9 +1668,12 @@ window.__burraco = {
   home: () => mostraHome(),
   // i collaudi entrano dritti al tavolo, senza passare dalla schermata iniziale
   // non restituisce la promessa: i collaudi devono poter vedere la distribuzione
-  avvia: (mode, target) => { avviaPartita(mode || '1v1', target || 2005); },
+  // il seme serve ai collaudi che devono ripetere la stessa identica partita
+  avvia: (mode, target, seme) => { avviaPartita(mode || '1v1', target || 2005, seme); },
   riprendi: () => riprendiPartita(),
   rete: Rete,
+  conto: Conto,
+  stat: Stat,
   online: () => online,
   posto: () => HUMAN,
   nuovaPartita: (mode, target) => {
