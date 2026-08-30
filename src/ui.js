@@ -336,9 +336,13 @@ function seatHTML(p) {
     const rot = (i - (mostrate - 1) / 2) * 3.4;
     fan += `<div class="card back" style="transform:rotate(${rot.toFixed(1)}deg)"></div>`;
   }
+  // il livello si mostra solo per un posto giocato dal computer, mai per un
+  // umano online (lì G.livelli resta vuoto: nessun posto è del computer)
+  const liv = !online && G.livelli && G.livelli[p];
+  const badgeLivello = liv ? `<span class="badge-livello">${NOMI_LIVELLO[liv]}</span>` : '';
   return `<div class="seat ${gioca ? 'now' : ''}" data-p="${p}">
     <div class="fan ${n ? '' : 'empty'}">${fan}</div>
-    <div class="who"><b>${G.names[p]}</b><span class="sep"> · </span>${n}<span class="unita"> ${n === 1 ? 'carta' : 'carte'}</span>${gioca ? '<span class="gioca"> · gioca</span>' : ''}</div>
+    <div class="who"><b>${G.names[p]}</b>${badgeLivello}<span class="sep"> · </span>${n}<span class="unita"> ${n === 1 ? 'carta' : 'carte'}</span>${gioca ? '<span class="gioca"> · gioca</span>' : ''}</div>
   </div>`;
 }
 function seatsOf(team) {
@@ -605,6 +609,12 @@ function mostraHome() {
   $('home').hidden = false;
   $('home').innerHTML = `
     <div class="home-in">
+      <div class="home-barra">
+        <button class="btn ghost mini" data-h="conto">${Conto.dentro
+          ? `👤 ${esc(Conto.nome || 'Giocatore')}`
+          : '👤 Accedi'}</button>
+        <button class="btn ghost mini" data-h="problema" title="Segnala un problema">🐞 Segnala</button>
+      </div>
       <div class="home-testa">
         <h1>Tavolo da Burraco</h1>
         <p>Regole ufficiali italiane · da soli o in due</p>
@@ -624,12 +634,7 @@ function mostraHome() {
           <b>Regolamento</b><small>Il codice di gara, articolo per articolo, con le fonti</small></button>
       </div>
       <div class="home-piede">
-        ${Conto.dentro
-          ? `<div class="campo-nome"><span>Il tuo conto</span>
-               <div class="conto-riga"><b>${esc(Conto.nome || 'Giocatore')}</b>
-                 <button class="btn ghost mini" data-h="conto">Gestisci</button></div>
-             </div>`
-          : `<label class="campo-nome">
+        ${Conto.dentro ? '' : `<label class="campo-nome">
                <span>Come ti chiami</span>
                <input id="home-nome" type="text" maxlength="14" placeholder="Tu"
                       value="${esc(nome)}" autocomplete="off" spellcheck="false">
@@ -641,8 +646,8 @@ function mostraHome() {
         ? `<p class="home-nota">Sei nel tuo conto: le statistiche ti seguono su qualsiasi telefono.
              Le partite contro il computer funzionano anche senza connessione.</p>`
         : `<p class="home-nota">Si gioca anche senza conto: il nome e le statistiche restano sul
-             telefono. <button class="collegamento" data-h="conto">Apri un conto o entra nel tuo</button>
-             per ritrovarle ovunque.</p>`}
+             telefono. Tocca <b>Accedi</b> in alto per aprire un conto o entrare nel tuo, e
+             ritrovarle su qualsiasi telefono.</p>`}
     </div>`;
 }
 
@@ -679,10 +684,27 @@ function applicaNome() {
   if (G && G.names) G.names[HUMAN] = n || 'Tu';
 }
 
-async function avviaPartita(mode, target, seme) {
+/** Livello del computer scelto l'ultima volta (Facile/Medio/Pro), per non dover
+    riscegliere ogni partita. Un posto solo — 'est' — basta per l'1v1. */
+function livelliSalvati() {
+  const base = { est: 2, nord: 2, ovest: 2 };
+  try { return { ...base, ...JSON.parse(localStorage.getItem('burraco.livelli') || '{}') }; }
+  catch (e) { return base; }
+}
+function salvaLivelli(l) {
+  try { localStorage.setItem('burraco.livelli', JSON.stringify(l)); } catch (e) { }
+}
+/** Da {est,nord,ovest} all'array `livelli` per posto che si passa a E.newGame:
+    seat0 è sempre umano (null). 1v1: solo 'Computer' (seat1, valore 'est'). */
+function livelliPerPosti(mode, lv) {
+  return mode === '2v2' ? [null, lv.est, lv.nord, lv.ovest] : [null, lv.est];
+}
+
+async function avviaPartita(mode, target, seme, livelli) {
   chiudiOnline();
   HUMAN = 0;
-  G = E.newGame(mode, seme ? { target, seed: seme } : { target });
+  const lv = livelli || livelliSalvati();
+  G = E.newGame(mode, { ...(seme ? { target, seed: seme } : { target }), livelli: livelliPerPosti(mode, lv) });
   applicaNome();
   sel.clear(); say(''); dealing = true; handOrder = [];
   nascondiHome();
@@ -796,10 +818,10 @@ async function mossaDellAltro(payload) {
       const quante = (mossa.ids || []).length;
       say(mossa.t === 'a' ? `${G.names[p]} attacca ${quante === 1 ? 'una carta' : quante + ' carte'}`
                           : `${G.names[p]} cala ${quante} carte`);
-      const dalPosto = rett(elPosto(p)), aiGiochi = postoIn(elGiochiDi(squadra));
+      const dalPosto = rett(elPosto(p)), giochiDestinazione = postoIn(elGiochiDi(squadra));
       E.applicaMossa(G, mossa);
       await vola(Array.from({ length: Math.min(quante, 5) }, () => ({
-        html: backHTML(), da: dalPosto, a: aiGiochi,
+        html: backHTML(), da: dalPosto, a: giochiDestinazione,
       })), 260);
     } else if (mossa.t === 's') {
       say(`${G.names[p]} scarta…`);
@@ -845,6 +867,7 @@ function bindOnce() {
     else if (b.dataset.h === 'online') onlineDialog();
     else if (b.dataset.h === 'stat') statDialog();
     else if (b.dataset.h === 'conto') contoDialog();
+    else if (b.dataset.h === 'problema') segnalaProblema();
     else if (b.dataset.h === 'rientra') rientraOnline();
     else if (b.dataset.h === 'regole') rulesDialog();
     else if (b.dataset.h === 'tema') cambiaTema();
@@ -1264,7 +1287,7 @@ async function turnoComputer(p) {
   await pensiero(PENSA.pesca);
   const daMazzo = rett(elMazzo()), daScarti = rett(elScarti()), alPosto = rett(elPosto(p));
   const primaScarti = G.discard.length;
-  E.aiDraw(G, p);
+  E.pescaComputer(G, p);
   const dalMonte = G.discard.length < primaScarti;
   const quante = dalMonte ? Math.min(primaScarti, 5) : 1;
   Suoni.suona('carta');
@@ -1275,16 +1298,17 @@ async function turnoComputer(p) {
   await sleep(PENSA.dopo);
 
   let guard = 0;
+  const statoCalata = { aperte: 0 };
   while (guard++ < 45) {
     const prima = G.teams[squadra].pozzetto;
     const dalPosto = rett(elPosto(p));
-    const aiGiochi = postoIn(elGiochiDi(G.teamOf[p]));
-    const mossa = E.aiOneMeld(G, p);
+    const giochiComputer = postoIn(elGiochiDi(G.teamOf[p]));
+    const mossa = E.calataComputer(G, p, statoCalata);
     if (!mossa) break;
     say(mossa.t === 'add' ? `${G.names[p]} attacca una carta` : `${G.names[p]} cala ${mossa.n} carte`);
     Suoni.suona('cala');
     await vola(Array.from({ length: Math.min(mossa.n, 5) }, () => ({
-      html: backHTML(), da: dalPosto, a: aiGiochi,
+      html: backHTML(), da: dalPosto, a: giochiComputer,
     })), 260);
     render();
     await pensiero(PENSA.calata);
@@ -1298,7 +1322,7 @@ async function turnoComputer(p) {
   await pensiero(PENSA.scarto);
   const prima = G.teams[squadra].pozzetto;
   const daMano = rett(elPosto(p)), alMonte = rett(elScarti());
-  E.aiDiscard(G, p);
+  E.scartaComputer(G, p);
   // la carta scartata è quella in cima al monte: ora si può mostrare scoperta
   Suoni.suona('gira');
   await vola([{ html: cardHTML(G.discard[0]), da: daMano, a: alMonte }], 280);
@@ -1671,25 +1695,59 @@ async function rientraOnline() {
   }
 }
 
-function newGameDialog() {
+const NOMI_LIVELLO = { 1: 'Facile', 2: 'Medio', 3: 'Pro' };
+function opzioniLivello(id, etichetta, valore) {
+  return `<label class="opt-livello"><span>${etichetta}</span>
+    <select id="${id}">${[1, 2, 3].map(n =>
+      `<option value="${n}" ${n === valore ? 'selected' : ''}>${NOMI_LIVELLO[n]}</option>`).join('')}
+    </select></label>`;
+}
+function livelliDalForm(mode) {
+  const val = id => { const el = $(id); return el ? +el.value : 2; };
+  return {
+    est: val('l-est'),
+    nord: mode === '2v2' ? val('l-nord') : 2,
+    ovest: mode === '2v2' ? val('l-ovest') : 2,
+  };
+}
+
+function newGameDialog(scelta) {
+  const mode = (scelta && scelta.mode) || '1v1';
+  const goal = (scelta && scelta.goal) || 2005;
+  const lv = (scelta && scelta.livelli) || livelliSalvati();
   const body = `<div class="opts">
-    <label class="opt"><input type="radio" name="mode" value="1v1" checked>
+    <label class="opt"><input type="radio" name="mode" value="1v1" ${mode === '1v1' ? 'checked' : ''}>
       <span><b>Uno contro uno</b><small>Tu contro il computer. Due pozzetti, uno per parte.</small></span></label>
-    <label class="opt"><input type="radio" name="mode" value="2v2">
+    <label class="opt"><input type="radio" name="mode" value="2v2" ${mode === '2v2' ? 'checked' : ''}>
       <span><b>A coppie, 2 contro 2</b><small>Tu e Nord contro Est e Ovest, come al circolo.</small></span></label>
-    <label class="opt" style="margin-top:6px"><input type="radio" name="goal" value="2005" checked>
+    <label class="opt" style="margin-top:6px"><input type="radio" name="goal" value="2005" ${goal === 2005 ? 'checked' : ''}>
       <span><b>Partita a 2005 punti</b><small>Il traguardo classico: più mani, rimonte possibili.</small></span></label>
-    <label class="opt"><input type="radio" name="goal" value="1005">
+    <label class="opt"><input type="radio" name="goal" value="1005" ${goal === 1005 ? 'checked' : ''}>
       <span><b>Partita a 1005 punti</b><small>Più breve, due o tre mani.</small></span></label>
+    <div class="opts-livelli">
+      <p class="fonte" style="margin:10px 0 6px">Livello del computer — solo regole scelte a tavolino,
+        nessun apprendimento automatico.</p>
+      ${opzioniLivello('l-est', mode === '2v2' ? 'Est' : 'Computer', lv.est)}
+      ${mode === '2v2' ? opzioniLivello('l-nord', 'Nord (il tuo compagno)', lv.nord) : ''}
+      ${mode === '2v2' ? opzioniLivello('l-ovest', 'Ovest', lv.ovest) : ''}
+    </div>
   </div>`;
-  modal('Nuova partita', 'Scegli modalità e traguardo.', body,
+  modal('Nuova partita', 'Scegli modalità, traguardo e livello del computer.', body,
     `<button class="btn ghost" id="m-cancel">Annulla</button><button class="btn primary" id="m-go">Distribuisci</button>`);
   $('m-cancel').onclick = closeModal;
+  const ridisegna = () => {
+    const nuovoMode = document.querySelector('input[name=mode]:checked').value;
+    const nuovoGoal = +document.querySelector('input[name=goal]:checked').value;
+    newGameDialog({ mode: nuovoMode, goal: nuovoGoal, livelli: livelliDalForm(mode) });
+  };
+  for (const r of document.querySelectorAll('input[name=mode]')) r.onchange = ridisegna;
   $('m-go').onclick = async () => {
-    const mode = document.querySelector('input[name=mode]:checked').value;
-    const goal = +document.querySelector('input[name=goal]:checked').value;
+    const modeScelto = document.querySelector('input[name=mode]:checked').value;
+    const goalScelto = +document.querySelector('input[name=goal]:checked').value;
+    const livelli = livelliDalForm(modeScelto);
+    salvaLivelli(livelli);
     closeModal();
-    await avviaPartita(mode, goal);
+    await avviaPartita(modeScelto, goalScelto, null, livelli);
   };
 }
 
@@ -1801,6 +1859,7 @@ function menuDialog() {
        <button class="btn" id="m-effetti" style="text-align:left">Suoni delle carte: <b>${Suoni.effetti ? 'accesi' : 'spenti'}</b></button>
        <button class="btn" id="m-tema" style="text-align:left">Cambia tema chiaro / scuro</button>
        <button class="btn" id="m-reg" style="text-align:left">Regolamento ufficiale</button>
+       <button class="btn" id="m-problema" style="text-align:left">Segnala un problema</button>
        <button class="btn" id="m-nuova" style="text-align:left">Nuova partita</button>
        <button class="btn primary" id="m-home" style="text-align:left">Torna alla schermata iniziale</button>
        ${online ? `<button class="btn" id="m-esci" style="text-align:left">Abbandona la partita online</button>` : ''}
@@ -1812,6 +1871,7 @@ function menuDialog() {
   $('m-effetti').onclick = () => { Suoni.cambiaEffetti(); closeModal(); menuDialog(); };
   $('m-tema').onclick = () => { cambiaTema(); closeModal(); };
   $('m-reg').onclick = () => { closeModal(); rulesDialog(); };
+  $('m-problema').onclick = () => { closeModal(); segnalaProblema(); };
   $('m-nuova').onclick = () => { closeModal(); newGameDialog(); };
   $('m-home').onclick = () => { closeModal(); save(); mostraHome(); };
   if ($('m-esci')) $('m-esci').onclick = () => { closeModal(); chiudiOnline(); mostraHome(); };
@@ -1861,6 +1921,42 @@ function rulesDialog() {
   $('m-ok').onclick = closeModal;
 }
 
+/* ---------- Segnala un problema ----------
+   Niente server in questa fase: si apre l'email già scritta, con versione,
+   dispositivo e le ultime mosse, così chi legge non deve chiedere altro.
+   La versione si legge da sw.js — un solo posto dove sta scritta. */
+async function versioneApp() {
+  try {
+    const r = await fetch('./sw.js', { cache: 'no-store' });
+    const t = await r.text();
+    const m = t.match(/VERSIONE\s*=\s*'([^']+)'/);
+    return (m && m[1]) || 'sconosciuta';
+  } catch (e) { return 'sconosciuta'; }
+}
+
+async function segnalaProblema() {
+  const versione = await versioneApp();
+  const dispositivo = `${navigator.userAgent} — finestra ${window.innerWidth}×${window.innerHeight}`;
+  const mosse = (G && Array.isArray(G.log) && G.log.length)
+    ? G.log.slice(-15).map(e => (logLine(e).h || '').replace(/<[^>]+>/g, '')).filter(Boolean).join('\n')
+    : '(nessuna partita in corso)';
+  const corpo = [
+    'Cosa è successo (scrivi qui):',
+    '',
+    '',
+    '——————————',
+    `Versione: ${versione}`,
+    `Dispositivo: ${dispositivo}`,
+    '',
+    'Ultime mosse:',
+    mosse,
+  ].join('\n');
+  const link = 'mailto:maccarifabio1997@gmail.com'
+    + `?subject=${encodeURIComponent('Burraco — segnalazione (' + versione + ')')}`
+    + `&body=${encodeURIComponent(corpo)}`;
+  window.location.href = link;
+}
+
 /* ---------- Avvio ---------- */
 bindOnce();
 // ridisegna quando cambia la larghezza: le carte si adattano allo schermo
@@ -1897,8 +1993,8 @@ window.__burraco = {
   stato: () => G,
   seleziona: ids => { sel = new Set(ids); msg = ''; render(); },
   disegna: () => render(),
-  turnoIA: () => E.aiTurn(G, G.turn),
-  sbloccaIA: () => { busy = false; },
+  turnoComputer: () => E.turnoComputer(G, G.turn),
+  sbloccaComputer: () => { busy = false; },
   fineMano: () => finishHand(),
   home: () => mostraHome(),
   // i collaudi entrano dritti al tavolo, senza passare dalla schermata iniziale

@@ -1,0 +1,55 @@
+Cosa c'è in questo zip
+=======================
+
+File nuovi (da aggiungere al repository):
+- tests/livelli.test.js
+- tools/simula-livelli.js
+
+File modificati (sostituiscono quelli che hai già):
+- src/engine.js
+- src/ui.js
+- styles.css
+- sw.js            (solo VERSIONE alzata a burraco-v25)
+- README.md        (riscritto: funzionalità di oggi, architettura, funzionalità future)
+
+Cosa contiene il cambiamento
+=============================
+
+1. Rinominato tutto quello che nel codice si chiamava "IA"/"intelligenza artificiale":
+   non è mai stata una vera intelligenza artificiale (nessun apprendimento, nessuna
+   rete), solo regole scritte a mano — il nome era rimasto per abitudine. Ora si
+   chiama "il computer" ovunque: funzioni, commenti, hook della UI.
+
+2. Implementati i tre livelli di difficoltà del computer che avevi confermato
+   (Facile / Medio / Pro), sia in 1v1 sia in 2v2 (con un livello a testa scelto
+   per ciascuno dei tre computer, compreso il tuo compagno). Nessuno dei tre
+   livelli legge mai le carte in mano a un altro giocatore — verificato sia nel
+   codice sia con un test dedicato. Il progetto completo, comprese le scelte di
+   tuning fatte durante la verifica, è nel documento
+   "Offline — 3 livelli del computer" nel progetto Claude.
+
+3. Aggiunta una schermata di scelta livello (menu a tendina per posto) prima di
+   iniziare una partita locale, con etichetta del livello accanto al nome di
+   ogni computer durante la partita. La scelta si ricorda da una partita
+   all'altra.
+
+4. Riscritto il README: la lunga lista "Novità" versione per versione è stata
+   compressa in due sezioni — "Cosa fa oggi l'app" (funzionalità) e "Cosa c'è
+   sotto" (architettura) — più una sezione "Funzionalità future" con la
+   roadmap. Alzata VERSIONE a burraco-v25 in sw.js.
+
+Come si verifica
+=================
+
+npm test                        → 83 test, tutti verdi
+node tools/simula-livelli.js    → fa giocare i tre livelli centinaia di volte
+                                   fra loro e conferma che Pro batte Medio batte
+                                   Facile anche in pratica, non solo sulla carta
+
+Come si applica
+================
+
+Come sempre: carica questi file al posto di quelli che hai nel repository
+(stessa cartella, stesso nome), poi ricorda i due passaggi soliti — caricare
+anche i file nascosti se non ci sono già (.nojekyll, .github/workflows/) non
+serve stavolta, sono invariati.

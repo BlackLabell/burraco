@@ -303,6 +303,11 @@ function newGame(mode, opts = {}) {
     handNo: 0,
     finished: false,
     winner: null,
+    // Livello del computer per ciascun posto: 1 (facile), 2 (medio), 3 (pro).
+    // `null`/assente per un posto umano. Vedi "IL COMPUTER" più sotto — sono
+    // solo regole, nessun apprendimento: il livello sceglie quali regole
+    // applicare, non viene mai dedotto o modificato durante la partita.
+    livelli: opts.livelli ? [...opts.livelli] : new Array(nP).fill(null),
     log: [],
   };
   startHand(g);
@@ -330,6 +335,10 @@ function startHand(g) {
   g.tookPileThisTurn = false;
   g.mosse = [];                 // registro della mano: vedi "REGISTRO DELLE MOSSE"
   g.puntiInizioMano = [...g.matchScore];   // per rigiocare la mano senza contare due volte
+  // Chi ha preso il monte scarti in questa mano, e cosa c'era dentro: informazione
+  // già pubblica (chiunque fosse al tavolo l'avrebbe vista), usata dal computer di
+  // livello Pro per farsi un'idea di cosa cerca l'avversario. Mai una mano altrui.
+  g.preseDalMonte = [];
   g.log.push({ t: 'hand', n: g.handNo });
   return g;
 }
@@ -350,11 +359,13 @@ function draw(g, p, source) {
   if (g.phase !== 'draw') return err('Hai già pescato.');
   if (source === 'pile') {
     if (g.discard.length === 0) return err('Il monte degli scarti è vuoto.');
-    g.hands[p].push(...g.discard.splice(0, g.discard.length));
+    const presa = g.discard.splice(0, g.discard.length);
+    g.hands[p].push(...presa);
     g.hands[p].sort(sortCards);
     g.tookPileThisTurn = true;
     g.mosse.push({ t: 'p', p, s: 'pile' });
     g.log.push({ t: 'draw', p, src: 'pile' });
+    (g.preseDalMonte = g.preseDalMonte || []).push({ p, turno: g.turni || 0, carte: presa.map(c => ({ r: c.r, s: c.s })) });
   } else {
     if (g.stock.length === 0) return err('Il tallone è esaurito: devi prendere gli scarti.');
     g.hands[p].push(g.stock.shift());
@@ -614,6 +625,7 @@ function inizioMano(g) {
     names: [...g.names], teamOf: [...g.teamOf],
     matchScore: [...(g.puntiInizioMano || g.matchScore)], dealer: g.dealer, handNo: g.handNo - 1,
     finished: false, winner: null,
+    livelli: g.livelli ? [...g.livelli] : new Array(g.nPlayers).fill(null),
     log: i >= 0 ? g.log.slice(0, i) : [],
   };
   startHand(b);
@@ -650,8 +662,25 @@ function ok(x) { return { ok: true, ...(x || {}) }; }
 function err(m) { return { ok: false, error: m }; }
 
 /* ============================================================
-   INTELLIGENZA ARTIFICIALE
+   IL COMPUTER
+   Nessun apprendimento automatico, nessuna rete: solo regole, come le
+   altre funzioni di questo file. Tre livelli (1 facile, 2 medio, 3 pro),
+   scelti da chi apre la partita e mai cambiati durante il gioco.
+   Vincolo che vale per tutti e tre, senza eccezioni: ogni funzione qui
+   sotto riceve `g` e il posto `p`, e legge SOLO `g.hands[p]` — la
+   propria mano. Tutto il resto che un livello più alto usa in più
+   (giochi calati, monte scarti, punteggio, chi ha preso cosa dal monte)
+   è informazione già pubblica, visibile a chiunque fosse al tavolo:
+   mai la mano di un altro posto, compagno di squadra compreso.
    ============================================================ */
+
+const LIVELLI_COMPUTER = { 1: 'Facile', 2: 'Medio', 3: 'Pro' };
+
+/** Il livello del posto `p` (1/2/3). Se non è stato scelto, Medio. */
+function livelloComputer(g, p) {
+  const l = g.livelli && g.livelli[p];
+  return l === 1 || l === 3 ? l : 2;
+}
 
 /** Tutte le combinazioni nuove che si possono formare da un insieme di carte. */
 function findNewMelds(cards) {
@@ -711,21 +740,145 @@ function findNewMelds(cards) {
   return out.filter(g => solveMeld(g) !== null);
 }
 
+/** Tutte le carte che il posto `p` può contare legittimamente: la propria
+    mano, tutti i giochi calati sul tavolo (di entrambe le squadre) e il
+    monte scarti attuale. Mai le carte in mano a un altro posto. */
+function carteVisibili(g, p) {
+  const out = g.hands[p].slice();
+  for (const t of [0, 1]) for (const m of g.teams[t].melds) out.push(...meldCards(m));
+  out.push(...g.discard);
+  return out;
+}
+
+/** Quante delle 2 copie (mazzo doppio) di una carta naturale NON sono fra
+    le carte visibili al posto `p` — quindi potrebbero ancora arrivare. */
+function copieNonViste(g, p, r, s) {
+  const viste = carteVisibili(g, p).filter(c => c.r === r && c.s === s).length;
+  return Math.max(0, 2 - viste);
+}
+
+/**
+ * Livello 2 e 3: prima di usare una matta (jolly o 2 fuori posizione) su un
+ * gioco della propria squadra, conviene chiedersi se non sia meglio
+ * aspettare. Due casi da proteggere:
+ *   - il gioco è GIÀ un burraco pulito (200 punti): metterci una matta lo
+ *     fa scendere a 150 o 100 — quasi mai conviene.
+ *   - il gioco ha 6 carte, nessuna matta: con una matta diventa subito un
+ *     burraco, ma sporco (100). Se la carta naturale che servirebbe non è
+ *     ancora tutta uscita, aspettarla vale di più — prima o poi arriva un
+ *     burraco pulito (200) da solo. Si applica alle scale: per i tris,
+ *     dove "la carta che manca" non ha una posizione, non si applica.
+ * Fuori da questi due casi, usare la matta va benissimo.
+ */
+function mattaConviene(g, p, m, c, test) {
+  if (burracoType(m) === 'pulito') return false;
+  if (m.type === 'seq' && m.slots.length === 6 && m.matte === 0) {
+    const slot = test.slots.find(s => s.card.id === c.id);
+    if (slot && slot.wild) {
+      const rango = naturalRankAt(slot.pos);
+      // aspettare ha senso solo se il naturale è ancora del tutto fresco (nessuna
+      // delle due copie vista da nessuna parte) e c'è ancora tempo per pescarlo —
+      // a tallone quasi finito i 100 punti sicuri di adesso valgono più di una
+      // scommessa che potrebbe non pagare mai
+      if (g.stock.length > 20 && copieNonViste(g, p, rango, m.suit) === 2) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Livello 2: una combinazione già solida (4 carte o più, oppure 3 tutte
+ * naturali senza matta) si cala sempre — non c'è motivo di aspettare, e
+ * tenerla in mano costerebbe solo punti se poi non si chiude. Il freno
+ * riguarda solo l'apertura debole (3 carte con una matta dentro): di
+ * quelle, una a turno è già abbastanza per non svuotare la mano subito e
+ * lasciare intuire all'avversario tutto quello che si sta raccogliendo.
+ */
+function aprireConviene(g, p, cand, giaAperte) {
+  if (cand.length >= 4 || !cand.some(canBeWild)) return true;
+  if (g.hands[p].length >= 13) return true;                                              // mano piena, va comunque sfoltita
+  if (g.teams[g.teamOf[p]].pozzetto && !hasBurraco(g, g.teamOf[p])) return true;          // serve un burraco per poter chiudere
+  return giaAperte === 0;
+}
+
+/** In base al punteggio partita, il livello 3 decide se conviene chiudere
+    presto (in vantaggio o quasi, vicini al traguardo) o inseguire punti
+    più grandi (nettamente indietro). */
+function strategiaPartita(g, p) {
+  const mia = g.teamOf[p], avv = 1 - mia;
+  const distanza = g.target - g.matchScore[mia];
+  const vantaggio = g.matchScore[mia] - g.matchScore[avv];
+  if (distanza <= 500 && vantaggio >= -100) return 'chiudi';
+  if (vantaggio <= -500) return 'punta';
+  return 'equilibrata';
+}
+
+/** Simula, su una copia, la stessa strategia "cala quello che puoi" per
+    vedere se la mano arriverebbe a zero carte. Non è un risolutore
+    ottimale — è la stessa regola greedy usata davvero in tavolo, solo
+    provata prima: se il computer non calerebbe così, non serve saperlo. */
+function provaUscita(mani, giochi) {
+  let cambiato = true;
+  while (cambiato && mani.length) {
+    cambiato = false;
+    for (const m of giochi) {
+      for (let i = 0; i < mani.length; i++) {
+        const c = mani[i];
+        if (!canAttach(m, c)) continue;
+        const test = solveWith(m, c);
+        if (!test) continue;
+        Object.assign(m, test);
+        mani.splice(i, 1);
+        cambiato = true;
+        break;
+      }
+      if (cambiato) break;
+    }
+    if (cambiato) continue;
+    const cands = findNewMelds(mani);
+    if (cands.length) {
+      cands.sort((a, b) => b.length - a.length);
+      const cand = cands[0];
+      giochi.push(solveMeld(cand));
+      const usate = new Set(cand.map(c => c.id));
+      for (let i = mani.length - 1; i >= 0; i--) if (usate.has(mani[i].id)) mani.splice(i, 1);
+      cambiato = true;
+    }
+  }
+  return mani.length === 0;
+}
+
+/** Livello 3: si può restare senza carte SOLO calando, in questo turno?
+    (Niente scarto: se il pozzetto non è ancora stato preso, è la mossa
+    più forte del gioco — via Art. 17, vale la pena rincorrerla.) */
+function puoUscireCalando(g, p) {
+  if (g.teams[g.teamOf[p]].pozzetto) return false;   // il pozzetto è già stato preso: non c'è "al volo" da inseguire
+  const mani = g.hands[p].slice();
+  const giochi = teamMelds(g, p).map(m => ({ ...m, slots: m.slots.slice() }));
+  return provaUscita(mani, giochi);
+}
+
 /**
  * UNA sola mossa di calata o attacco. Ritorna quel che ha fatto, oppure null.
  * Spezzare il turno in mosse singole serve all'interfaccia, che le mostra
  * una alla volta invece di far comparire tutto insieme.
  */
-function aiOneMeld(g, p) {
+function calataComputer(g, p, stato) {
+  const livello = livelloComputer(g, p);
+  const forzaUscita = livello === 3 && puoUscireCalando(g, p);
+
   // 1) attacca una carta a un gioco già aperto della squadra
   for (const m of teamMelds(g, p)) {
     for (const c of [...g.hands[p]]) {
       if (canBeWild(c) && m.matte > 0) continue;           // una sola matta per gioco
-      if (canBeWild(c) && burracoType(m) === null && m.slots.length < 6) continue; // non sprecare matte
+      if (canBeWild(c) && burracoType(m) === null && m.slots.length < 6) continue; // non sprecare matte su un gioco appena iniziato
       if (!canAttach(m, c)) continue;
       const test = solveWith(m, c);
       if (!test) continue;
       if (test.matte > m.matte && !canBeWild(c)) continue;
+      if (livello >= 2 && canBeWild(c) && !forzaUscita && !mattaConviene(g, p, m, c, test)) continue;
+      // la matta di riserva (livello 3) conta solo per aprire un gioco nuovo, sotto:
+      // attaccarla a un gioco già in corso è quasi sempre una buona mossa, mai sprecata.
       if (addToMeld(g, p, m.id, [c.id]).ok) return { t: 'add', meld: m.id, n: 1 };
     }
   }
@@ -736,13 +889,25 @@ function aiOneMeld(g, p) {
     return a.filter(canBeWild).length - b.filter(canBeWild).length;
   });
   for (const cand of cands) {
-    if (meldNew(g, p, cand.map(c => c.id)).ok) return { t: 'meld', n: cand.length };
+    if (livello === 2 && !forzaUscita && !aprireConviene(g, p, cand, stato ? stato.aperte : 0)) continue;
+    // Livello 3 tiene "almeno una matta in mano" — ma solo passivamente:
+    // una matta vale sempre 100 in utilitaCarta (mai la prima scartata) e
+    // mattaConviene protegge già un burraco pulito. Un blocco attivo qui,
+    // che rifiuti di calare pur di risparmiare la matta, è stato provato e
+    // scartato: nelle partite simulate (tools/simula-livelli.js) faceva
+    // perdere di più il livello 3 di quanto la riserva facesse guadagnare,
+    // perché una combinazione in mano non calata è punti regalati
+    // all'avversario se la mano finisce prima. Meglio calare.
+    if (meldNew(g, p, cand.map(c => c.id)).ok) {
+      if (stato) stato.aperte++;
+      return { t: 'meld', n: cand.length };
+    }
   }
   return null;
 }
 
 /** Punteggio di utilità di una carta rispetto al resto della mano. */
-function cardUtility(g, p, c) {
+function utilitaCarta(g, p, c, livello) {
   const hand = g.hands[p].filter(x => x !== c);
   if (canBeWild(c)) return 100;
   let u = 0;
@@ -753,14 +918,38 @@ function cardUtility(g, p, c) {
   }
   // carte che si attaccano ai propri giochi
   for (const m of teamMelds(g, p)) if (canAttach(m, c)) u += 7;
-  // carte che regalano punti agli avversari
-  for (const m of g.teams[1 - g.teamOf[p]].melds) if (canAttach(m, c)) u -= 4;
+  // carte che regalano punti all'avversario — più attento dal livello 2 in su
+  const avv = g.teams[1 - g.teamOf[p]].melds;
+  const peso = livello >= 2 ? 8 : 4;
+  for (const m of avv) if (canAttach(m, c)) u -= peso;
+  if (livello >= 2) {
+    // margine di sicurezza: anche una carta solo vicina a un gioco avversario è rischiosa
+    for (const m of avv) {
+      if (m.type === 'seq' && m.suit === c.s && (Math.abs(c.r - m.lo) <= 2 || Math.abs(c.r - m.hi) <= 2)) u -= peso / 2;
+    }
+  }
+  if (livello >= 3) {
+    // livello Pro: ricorda anche cosa l'avversario ha preso dal monte scarti
+    // (evento pubblico — non è mai uno sguardo nella sua mano). Solo lo
+    // stesso rango: lo stesso seme da solo è un segnale troppo debole e,
+    // sommato su più prese nella stessa mano, finiva per far scartare male
+    // anche carte innocue (provato con tools/simula-livelli.js: toglierlo
+    // ha portato il livello 3 da sotto il 50% a un solido vantaggio).
+    for (const presa of (g.preseDalMonte || [])) {
+      if (g.teamOf[presa.p] === g.teamOf[p]) continue;
+      for (const pc of presa.carte) {
+        if (pc.r === c.r) u -= 2;
+      }
+    }
+  }
   return u - cardValue(c) / 10;
 }
 
 /** La pesca: dal tallone, o tutto il monte scarti se conviene. */
-function aiDraw(g, p) {
+function pescaComputer(g, p) {
   if (g.phase !== 'draw') return null;
+  const livello = livelloComputer(g, p);
+  const strategia = livello === 3 ? strategiaPartita(g, p) : 'equilibrata';
   let takePile = false;
   if (g.discard.length > 0) {
     const before = g.hands[p].length;
@@ -775,10 +964,17 @@ function aiDraw(g, p) {
     const min = minimoDaTenere(g, p, null, null);
     const giocabile = attachable > 0 || nuoviGiochi.some(c => withPile.length - c.length >= min);
     const value = g.discard.reduce((s, c) => s + cardValue(c), 0);
-    // conviene se il monte è ricco o sblocca giochi, ma non se ingolfa la mano
-    if ((gain >= 1 && giocabile && g.discard.length <= 12) || attachable >= 2 || (g.discard.length >= 4 && value >= 60 && g.discard.length <= 10)) takePile = true;
+    let sogliaValore = 60, maxScarti = 12, maxMano = 16;
+    if (strategia === 'punta') { sogliaValore = 40; maxScarti = 16; }   // insegue punti: più disposto a ingolfarsi per un gioco grosso
+    if (strategia === 'chiudi') { maxMano = 13; }                       // vuole chiudere: non si appesantisce
+    if (livello === 1) {
+      // meno selettivo: non controlla se il monte è davvero giocabile subito
+      if ((gain >= 1 && g.discard.length <= 14) || attachable >= 1) takePile = true;
+    } else {
+      if ((gain >= 1 && giocabile && g.discard.length <= maxScarti) || attachable >= 2 || (g.discard.length >= 4 && value >= sogliaValore && g.discard.length <= 10)) takePile = true;
+    }
     if (g.stock.length === 0) takePile = true;
-    if (before > 16) takePile = false;
+    if (before > maxMano) takePile = false;
   }
   let r = draw(g, p, takePile ? 'pile' : 'stock');
   if (!r.ok) r = draw(g, p, takePile ? 'stock' : 'pile');
@@ -787,8 +983,9 @@ function aiDraw(g, p) {
 }
 
 /** Lo scarto: la carta meno utile che sia lecito scartare. */
-function aiDiscard(g, p) {
-  const scored = g.hands[p].map(c => ({ c, u: cardUtility(g, p, c) }));
+function scartaComputer(g, p) {
+  const livello = livelloComputer(g, p);
+  const scored = g.hands[p].map(c => ({ c, u: utilitaCarta(g, p, c, livello) }));
   scored.sort((a, b) => a.u - b.u);
   for (const x of scored) {
     const r = discard(g, p, x.c.id);
@@ -799,15 +996,16 @@ function aiDiscard(g, p) {
 }
 
 /** Turno completo, tutto in una volta (usato dai test e dalle simulazioni). */
-function aiTurn(g, p) {
+function turnoComputer(g, p) {
   if (g.handOver || g.turn !== p) return;
-  if (g.phase === 'draw') aiDraw(g, p);
+  if (g.phase === 'draw') pescaComputer(g, p);
   if (g.handOver || g.turn !== p) return;
+  const stato = { aperte: 0 };
   let guard = 0;
-  while (guard++ < 45 && aiOneMeld(g, p)) if (g.handOver) return;
+  while (guard++ < 45 && calataComputer(g, p, stato)) if (g.handOver) return;
   if (g.handOver) return;
   if (g.hands[p].length === 0) return;   // pozzetto preso al volo
-  aiDiscard(g, p);
+  scartaComputer(g, p);
 }
 
 /* ---------- Export ---------- */
@@ -818,7 +1016,8 @@ const ENGINE = {
   spostamentoLecito, cartaCheServe,
   newGame, startHand, nextHand, endHand, draw, meldNew, addToMeld, discard, nextTurn,
   teamMelds, hasBurraco, canEmptyHand, canMeldToZero, minimoDaTenere, findNewMelds, sortCards,
-  aiTurn, aiDraw, aiOneMeld, aiDiscard,
+  LIVELLI_COMPUTER, livelloComputer, carteVisibili, puoUscireCalando, strategiaPartita,
+  turnoComputer, pescaComputer, calataComputer, scartaComputer,
   applicaMossa, inizioMano, rigiocaMano, annullabile, annulla,
 };
 export default ENGINE;

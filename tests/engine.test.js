@@ -525,7 +525,7 @@ function simulate(mode, seed, maxTurns = 4000) {
   while (!g.finished && turns < maxTurns) {
     if (g.handOver) { E.nextHand(g); continue; }
     const before = { p: g.turn, phase: g.phase, stock: g.stock.length, hand: g.hands[g.turn].length };
-    E.aiTurn(g, g.turn);
+    E.turnoComputer(g, g.turn);
     turns++;
     if (!g.handOver && g.turn === before.p && g.phase === before.phase &&
         g.stock.length === before.stock && g.hands[g.turn].length === before.hand) {
@@ -557,7 +557,7 @@ t('nessuna carta duplicata durante una partita', () => {
   const g = E.newGame('2v2', { seed: 777 });
   for (let i = 0; i < 600 && !g.finished; i++) {
     if (g.handOver) { E.nextHand(g); continue; }
-    E.aiTurn(g, g.turn);
+    E.turnoComputer(g, g.turn);
     const ids = [];
     for (const h of g.hands) ids.push(...h.map(c => c.id));
     for (const t2 of g.teams) for (const m of t2.melds) ids.push(...m.slots.map(s => s.card.id));
@@ -572,7 +572,7 @@ t('statistiche di 40 mani: chiusure e burrachi plausibili', () => {
   let closes = 0, hands = 0, burr = 0;
   for (let s = 0; s < 40; s++) {
     const g = E.newGame('2v2', { seed: 5000 + s });
-    for (let i = 0; i < 400 && !g.handOver; i++) E.aiTurn(g, g.turn);
+    for (let i = 0; i < 400 && !g.handOver; i++) E.turnoComputer(g, g.turn);
     if (g.handOver) {
       hands++;
       if (g.result.closer !== null) closes++;
@@ -604,7 +604,7 @@ function impronta(g) {
 t('una mano si rigioca identica dal seme e dal registro', () => {
   for (const seme of [11, 4242, 90210]) {
     const g = E.newGame('1v1', { seed: seme });
-    for (let i = 0; i < 400 && !g.handOver; i++) E.aiTurn(g, g.turn);
+    for (let i = 0; i < 400 && !g.handOver; i++) E.turnoComputer(g, g.turn);
     assert(g.mosse.length > 10, 'registro troppo corto: ' + g.mosse.length);
     const copia = E.rigiocaMano(g, g.mosse);
     assert(copia, 'la mano non si è potuta rigiocare (seme ' + seme + ')');
@@ -614,7 +614,7 @@ t('una mano si rigioca identica dal seme e dal registro', () => {
 
 t('il registro sopravvive a un salvataggio in JSON', () => {
   const g = E.newGame('2v2', { seed: 31337 });
-  for (let i = 0; i < 60 && !g.handOver; i++) E.aiTurn(g, g.turn);
+  for (let i = 0; i < 60 && !g.handOver; i++) E.turnoComputer(g, g.turn);
   const spedito = JSON.parse(JSON.stringify(g.mosse));   // come passasse dalla rete
   const copia = E.rigiocaMano(g, spedito);
   assert(copia, 'registro non replicabile dopo il giro in JSON');
@@ -627,17 +627,17 @@ t('annulla: torna indietro di una calata, non oltre', () => {
   for (let seme = 1; seme < 60 && !trovata; seme++) {
     const g = E.newGame('1v1', { seed: seme });
     for (let i = 0; i < 300 && !g.handOver; i++) {
-      if (g.turn !== 0) { E.aiTurn(g, 1); continue; }
-      if (g.phase === 'draw') { E.aiDraw(g, 0); continue; }
+      if (g.turn !== 0) { E.turnoComputer(g, 1); continue; }
+      if (g.phase === 'draw') { E.pescaComputer(g, 0); continue; }
       const prima = impronta(g);
-      if (!E.aiOneMeld(g, 0)) { E.aiDiscard(g, 0); continue; }
+      if (!E.calataComputer(g, 0)) { E.scartaComputer(g, 0); continue; }
       // ha calato: adesso l'annulla deve riportare esattamente a "prima"
       assert(E.annullabile(g, 0), 'la calata doveva essere annullabile');
       const indietro = E.annulla(g, 0);
       assert(indietro, 'annulla ha restituito niente');
       eq(impronta(indietro), prima, 'annulla non ha rimesso le cose com\'erano:');
       // dopo lo scarto non si annulla più
-      E.aiDiscard(g, 0);
+      E.scartaComputer(g, 0);
       eq(E.annullabile(g, 0), false, 'dopo lo scarto non si deve poter annullare');
       trovata = true;
       break;

@@ -212,6 +212,11 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 }
 .seat .who b{color:var(--felt-ink); font-weight:600}
 .seat.now .who b{color:#7FD3A5}
+.badge-livello{
+  display:inline-block; margin-left:5px; padding:1px 6px; border-radius:8px;
+  font-size:9.5px; letter-spacing:.03em; border:1px solid var(--felt-line);
+  color:var(--felt-soft); vertical-align:middle;
+}
 .seat .fan.empty{
   width:var(--cw); height:calc(var(--cw)*1.42);
   border:1px dashed var(--felt-line); border-radius:4px;
@@ -691,6 +696,13 @@ details.rules b{color:var(--ink)}
 .opt input{margin-top:3px; accent-color:var(--accent)}
 .opt b{display:block; font-size:14px}
 .opt small{color:var(--ink-soft); font-size:12.5px}
+
+.opts-livelli{display:flex; flex-direction:column; gap:8px}
+.opt-livello{display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:9px 12px; border:1px solid var(--edge); border-radius:3px; background:var(--panel-2)}
+.opt-livello span{font-size:13.5px}
+.opt-livello select{font:inherit; padding:5px 8px; border-radius:3px; border:1px solid var(--edge);
+  background:var(--panel); color:var(--ink)}
 
 
 /* ══════════════════════════════════════════════════════════════
