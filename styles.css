@@ -594,6 +594,8 @@ details.rules b{color:var(--ink)}
   width:100%; max-width:380px; display:flex; flex-direction:column; gap:22px;
   padding:18px 6px;
 }
+.home-barra{display:flex; justify-content:space-between; gap:8px; margin:-8px 0 -10px}
+.home-barra .btn{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .home-testa h1{
   font-family:"Bodoni Moda",Didot,Georgia,serif; font-weight:700;
   font-size:clamp(30px,8.5vw,40px); line-height:1.05; letter-spacing:-.01em;
@@ -611,6 +613,12 @@ details.rules b{color:var(--ink)}
 .btn.grande small{font-size:12px; opacity:.75; font-weight:400; line-height:1.3}
 .btn.primary.grande small{opacity:.85}
 
+/* .btn.mini nasce per stare sul feltro scuro del tavolo (--felt-soft si legge
+   lì): sulla home, chiara, lo stesso colore sparisce. Qui si sovrascrive. */
+.home-barra .btn.mini, .home-piede .btn.mini{color:var(--ink-faint); border-color:var(--edge)}
+.home-barra .btn.mini:hover:not(:disabled), .home-piede .btn.mini:hover:not(:disabled){
+  color:var(--ink); border-color:var(--accent-2); background:rgba(0,0,0,.05);
+}
 .home-piede{display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap}
 .campo-nome{flex:1 1 150px; display:flex; flex-direction:column; gap:4px; min-width:0}
 .campo-nome span{
