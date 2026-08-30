@@ -1,0 +1,135 @@
+diff --git a/src/ui.js b/src/ui.js
+index ac1d081..f58531a 100644
+--- a/src/ui.js
++++ b/src/ui.js
+@@ -605,6 +605,12 @@ function mostraHome() {
+   $('home').hidden = false;
+   $('home').innerHTML = `
+     <div class="home-in">
++      <div class="home-barra">
++        <button class="btn ghost mini" data-h="conto">${Conto.dentro
++          ? `👤 ${esc(Conto.nome || 'Giocatore')}`
++          : '👤 Accedi'}</button>
++        <button class="btn ghost mini" data-h="problema" title="Segnala un problema">🐞 Segnala</button>
++      </div>
+       <div class="home-testa">
+         <h1>Tavolo da Burraco</h1>
+         <p>Regole ufficiali italiane · da soli o in due</p>
+@@ -624,12 +630,7 @@ function mostraHome() {
+           <b>Regolamento</b><small>Il codice di gara, articolo per articolo, con le fonti</small></button>
+       </div>
+       <div class="home-piede">
+-        ${Conto.dentro
+-          ? `<div class="campo-nome"><span>Il tuo conto</span>
+-               <div class="conto-riga"><b>${esc(Conto.nome || 'Giocatore')}</b>
+-                 <button class="btn ghost mini" data-h="conto">Gestisci</button></div>
+-             </div>`
+-          : `<label class="campo-nome">
++        ${Conto.dentro ? '' : `<label class="campo-nome">
+                <span>Come ti chiami</span>
+                <input id="home-nome" type="text" maxlength="14" placeholder="Tu"
+                       value="${esc(nome)}" autocomplete="off" spellcheck="false">
+@@ -641,8 +642,8 @@ function mostraHome() {
+         ? `<p class="home-nota">Sei nel tuo conto: le statistiche ti seguono su qualsiasi telefono.
+              Le partite contro il computer funzionano anche senza connessione.</p>`
+         : `<p class="home-nota">Si gioca anche senza conto: il nome e le statistiche restano sul
+-             telefono. <button class="collegamento" data-h="conto">Apri un conto o entra nel tuo</button>
+-             per ritrovarle ovunque.</p>`}
++             telefono. Tocca <b>Accedi</b> in alto per aprire un conto o entrare nel tuo, e
++             ritrovarle su qualsiasi telefono.</p>`}
+     </div>`;
+ }
+ 
+@@ -845,6 +846,7 @@ function bindOnce() {
+     else if (b.dataset.h === 'online') onlineDialog();
+     else if (b.dataset.h === 'stat') statDialog();
+     else if (b.dataset.h === 'conto') contoDialog();
++    else if (b.dataset.h === 'problema') segnalaProblema();
+     else if (b.dataset.h === 'rientra') rientraOnline();
+     else if (b.dataset.h === 'regole') rulesDialog();
+     else if (b.dataset.h === 'tema') cambiaTema();
+@@ -1801,6 +1803,7 @@ function menuDialog() {
+        <button class="btn" id="m-effetti" style="text-align:left">Suoni delle carte: <b>${Suoni.effetti ? 'accesi' : 'spenti'}</b></button>
+        <button class="btn" id="m-tema" style="text-align:left">Cambia tema chiaro / scuro</button>
+        <button class="btn" id="m-reg" style="text-align:left">Regolamento ufficiale</button>
++       <button class="btn" id="m-problema" style="text-align:left">Segnala un problema</button>
+        <button class="btn" id="m-nuova" style="text-align:left">Nuova partita</button>
+        <button class="btn primary" id="m-home" style="text-align:left">Torna alla schermata iniziale</button>
+        ${online ? `<button class="btn" id="m-esci" style="text-align:left">Abbandona la partita online</button>` : ''}
+@@ -1812,6 +1815,7 @@ function menuDialog() {
+   $('m-effetti').onclick = () => { Suoni.cambiaEffetti(); closeModal(); menuDialog(); };
+   $('m-tema').onclick = () => { cambiaTema(); closeModal(); };
+   $('m-reg').onclick = () => { closeModal(); rulesDialog(); };
++  $('m-problema').onclick = () => { closeModal(); segnalaProblema(); };
+   $('m-nuova').onclick = () => { closeModal(); newGameDialog(); };
+   $('m-home').onclick = () => { closeModal(); save(); mostraHome(); };
+   if ($('m-esci')) $('m-esci').onclick = () => { closeModal(); chiudiOnline(); mostraHome(); };
+@@ -1861,6 +1865,42 @@ function rulesDialog() {
+   $('m-ok').onclick = closeModal;
+ }
+ 
++/* ---------- Segnala un problema ----------
++   Niente server in questa fase: si apre l'email già scritta, con versione,
++   dispositivo e le ultime mosse, così chi legge non deve chiedere altro.
++   La versione si legge da sw.js — un solo posto dove sta scritta. */
++async function versioneApp() {
++  try {
++    const r = await fetch('./sw.js', { cache: 'no-store' });
++    const t = await r.text();
++    const m = t.match(/VERSIONE\s*=\s*'([^']+)'/);
++    return (m && m[1]) || 'sconosciuta';
++  } catch (e) { return 'sconosciuta'; }
++}
++
++async function segnalaProblema() {
++  const versione = await versioneApp();
++  const dispositivo = `${navigator.userAgent} — finestra ${window.innerWidth}×${window.innerHeight}`;
++  const mosse = (G && Array.isArray(G.log) && G.log.length)
++    ? G.log.slice(-15).map(e => (logLine(e).h || '').replace(/<[^>]+>/g, '')).filter(Boolean).join('\n')
++    : '(nessuna partita in corso)';
++  const corpo = [
++    'Cosa è successo (scrivi qui):',
++    '',
++    '',
++    '——————————',
++    `Versione: ${versione}`,
++    `Dispositivo: ${dispositivo}`,
++    '',
++    'Ultime mosse:',
++    mosse,
++  ].join('\n');
++  const link = 'mailto:maccarifabio1997@gmail.com'
++    + `?subject=${encodeURIComponent('Burraco — segnalazione (' + versione + ')')}`
++    + `&body=${encodeURIComponent(corpo)}`;
++  window.location.href = link;
++}
++
+ /* ---------- Avvio ---------- */
+ bindOnce();
+ // ridisegna quando cambia la larghezza: le carte si adattano allo schermo
+diff --git a/styles.css b/styles.css
+index 3dffa87..bc1a74d 100644
+--- a/styles.css
++++ b/styles.css
+@@ -594,6 +594,8 @@ details.rules b{color:var(--ink)}
+   width:100%; max-width:380px; display:flex; flex-direction:column; gap:22px;
+   padding:18px 6px;
+ }
++.home-barra{display:flex; justify-content:space-between; gap:8px; margin:-8px 0 -10px}
++.home-barra .btn{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+ .home-testa h1{
+   font-family:"Bodoni Moda",Didot,Georgia,serif; font-weight:700;
+   font-size:clamp(30px,8.5vw,40px); line-height:1.05; letter-spacing:-.01em;
+@@ -611,6 +613,12 @@ details.rules b{color:var(--ink)}
+ .btn.grande small{font-size:12px; opacity:.75; font-weight:400; line-height:1.3}
+ .btn.primary.grande small{opacity:.85}
+ 
++/* .btn.mini nasce per stare sul feltro scuro del tavolo (--felt-soft si legge
++   lì): sulla home, chiara, lo stesso colore sparisce. Qui si sovrascrive. */
++.home-barra .btn.mini, .home-piede .btn.mini{color:var(--ink-faint); border-color:var(--edge)}
++.home-barra .btn.mini:hover:not(:disabled), .home-piede .btn.mini:hover:not(:disabled){
++  color:var(--ink); border-color:var(--accent-2); background:rgba(0,0,0,.05);
++}
+ .home-piede{display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap}
+ .campo-nome{flex:1 1 150px; display:flex; flex-direction:column; gap:4px; min-width:0}
+ .campo-nome span{

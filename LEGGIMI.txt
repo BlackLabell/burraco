@@ -1,0 +1,48 @@
+BURRACO — aggiornamenti UI (login, tema chiaro, segnala un problema)
+=====================================================================
+
+Cosa c'è in questo zip
+-----------------------
+- ui.js        → sostituisce src/ui.js nel tuo repository
+- styles.css   → sostituisce styles.css nel tuo repository (alla radice)
+- modifiche.patch → lo stesso cambiamento, in formato "patch" (utile se hai
+  fatto anche tu modifiche a questi due file e non vuoi perderle: vedi sotto)
+
+Cosa cambia, in pratica
+------------------------
+1. Il pulsante di accesso ("Accedi" / il tuo nome) è ora in alto a sinistra
+   nella home, non più in fondo alla pagina.
+2. Corretto un problema di contrasto: nel tema chiaro i pulsanti della home
+   (Accedi, Segnala) erano quasi invisibili — testo quasi dello stesso
+   colore dello sfondo. Ora si leggono bene in entrambi i temi.
+3. Nuovo pulsante "🐞 Segnala" in home (e anche nel menu di gioco, sotto
+   "Segnala un problema"): apre l'app di posta con già scritti oggetto,
+   versione dell'app, dimensioni della finestra/dispositivo e le ultime
+   mosse della partita in corso, pronto per essere inviato a
+   maccarifabio1997@gmail.com.
+
+Non ho toccato il tavolo da gioco vero e proprio (feltro, carte, pozzetti):
+solo la home e lo stile dei pulsanti "mini" fuori dal tavolo.
+
+Come applicarlo
+-----------------
+Opzione A — il modo più semplice:
+  1. Apri il tuo repository (locale o su GitHub).
+  2. Sostituisci il file src/ui.js con quello incluso qui.
+  3. Sostituisci il file styles.css (alla radice del progetto) con quello
+     incluso qui.
+  4. Fai commit e push come fai di solito.
+
+Opzione B — se hai fatto anche tu altre modifiche a questi due file e vuoi
+tenerle:
+  1. Nella cartella del tuo repository, esegui:
+       git apply modifiche.patch
+  2. Se qualche riga non collima (perché il file è cambiato troppo), copia
+     a mano solo i pezzi che ti servono guardando il .patch con un editor
+     di testo: sono cambi piccoli, circa 60 righe in tutto.
+
+Verificato prima di consegnare
+-------------------------------
+- 65 test automatici del motore di gioco: tutti passati (non toccati).
+- Controllo visivo con screenshot: tema chiaro, tema scuro, e durante una
+  partita in corso — pulsanti leggibili e al posto giusto in tutti e tre.
