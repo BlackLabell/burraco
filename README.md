@@ -7,7 +7,7 @@ con tre livelli di difficoltà) oppure **online in due**, con un codice di quatt
 dettare all'altro. Gira nel browser, si installa sul telefono e contro il computer funziona
 anche senza connessione.
 
-**Versione pubblicata:** `burraco-v25` — 30 agosto 2026
+**Versione pubblicata:** `burraco-v27` — 30 agosto 2026
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server proprio, nessun
 account a pagamento, nessun dominio da comprare.
 
@@ -212,7 +212,7 @@ Da quel momento parte a schermo intero come un'app e funziona anche in aereo.
 
 ```bash
 npm start     # apre http://localhost:8080
-npm test      # 83 test: motore di gioco + le regole dei tre livelli del computer
+npm test      # 88 test: motore di gioco + le regole dei tre livelli del computer
 ```
 
 `npm start` usa un piccolo server incluso nel progetto: serve perché i moduli JavaScript e il
@@ -228,7 +228,7 @@ batte Medio batte Facile, non solo sulla carta): `node tools/simula-livelli.js`.
 
 1. Cambia il codice.
 2. `npm test` — se un test si rompe, hai toccato una regola.
-3. **Alza `VERSIONE` in `sw.js`** (es. `burraco-v24` → `burraco-v25`). Senza questo passaggio
+3. **Alza `VERSIONE` in `sw.js`** (es. `burraco-v26` → `burraco-v27`). Senza questo passaggio
    chi ha già aperto l'app continua a vedere la versione vecchia presa dalla cache.
 4. Aggiorna questo README se hai cambiato una funzionalità, e la versione in cima al file.
 5. Carica su `main`.

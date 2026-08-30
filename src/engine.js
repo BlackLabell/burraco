@@ -918,14 +918,21 @@ function utilitaCarta(g, p, c, livello) {
   }
   // carte che si attaccano ai propri giochi
   for (const m of teamMelds(g, p)) if (canAttach(m, c)) u += 7;
-  // carte che regalano punti all'avversario — più attento dal livello 2 in su
+  // carte che regalano punti all'avversario — più attento dal livello 2 in su.
+  // Qui `u` è "quanto vale tenersi questa carta": scartaComputer scarta sempre
+  // la carta con `u` più basso. Una carta pericolosa deve quindi ALZARE `u`
+  // (si scarta per ultima, si preferisce tenerla o giocarla), mai abbassarlo —
+  // abbassarlo la fa scartare PRIMA delle altre, cioè il contrario di quello
+  // che deve succedere. (Bug reale, trovato da Fabio giocando: il livello Pro
+  // scartava proprio le carte più pericolose per l'avversario umano, perché
+  // il segno era invertito fin da questa formula precedente il livello 2/3.)
   const avv = g.teams[1 - g.teamOf[p]].melds;
   const peso = livello >= 2 ? 8 : 4;
-  for (const m of avv) if (canAttach(m, c)) u -= peso;
+  for (const m of avv) if (canAttach(m, c)) u += peso;
   if (livello >= 2) {
     // margine di sicurezza: anche una carta solo vicina a un gioco avversario è rischiosa
     for (const m of avv) {
-      if (m.type === 'seq' && m.suit === c.s && (Math.abs(c.r - m.lo) <= 2 || Math.abs(c.r - m.hi) <= 2)) u -= peso / 2;
+      if (m.type === 'seq' && m.suit === c.s && (Math.abs(c.r - m.lo) <= 2 || Math.abs(c.r - m.hi) <= 2)) u += peso / 2;
     }
   }
   if (livello >= 3) {
@@ -938,7 +945,7 @@ function utilitaCarta(g, p, c, livello) {
     for (const presa of (g.preseDalMonte || [])) {
       if (g.teamOf[presa.p] === g.teamOf[p]) continue;
       for (const pc of presa.carte) {
-        if (pc.r === c.r) u -= 2;
+        if (pc.r === c.r) u += 2;
       }
     }
   }
@@ -957,8 +964,15 @@ function pescaComputer(g, p) {
     const nuoviGiochi = findNewMelds(withPile);
     const gain = nuoviGiochi.length - findNewMelds(g.hands[p]).length;
     const melds = teamMelds(g, p);
-    let attachable = 0;
-    for (const c of g.discard) if (melds.some(m => canAttach(m, c))) attachable++;
+    // attachable: quante carte del monte si agganciano a un proprio gioco.
+    // attachableOro: fra quelle, quante lo porterebbero a 6+ carte (a un
+    // passo dal burraco o oltre) — un'occasione che vale sempre, anche in
+    // fondo alla mano, non solo quando c'è ancora tempo per smaltirla.
+    let attachable = 0, attachableOro = 0;
+    for (const c of g.discard) {
+      const m = melds.find(mm => canAttach(mm, c));
+      if (m) { attachable++; if (m.slots.length >= 5) attachableOro++; }
+    }
     // con il pozzetto preso e senza burraco vanno tenute due carte: un gioco che
     // svuoterebbe la mano non è calabile, e prendere il monte sarebbe inutile
     const min = minimoDaTenere(g, p, null, null);
@@ -971,7 +985,18 @@ function pescaComputer(g, p) {
       // meno selettivo: non controlla se il monte è davvero giocabile subito
       if ((gain >= 1 && g.discard.length <= 14) || attachable >= 1) takePile = true;
     } else {
-      if ((gain >= 1 && giocabile && g.discard.length <= maxScarti) || attachable >= 2 || (g.discard.length >= 4 && value >= sogliaValore && g.discard.length <= 10)) takePile = true;
+      // a inizio/metà mano c'è tutto il tempo per smaltire quello che si
+      // prende, quindi basta anche una sola carta che allunghi un proprio
+      // gioco; verso la fine (tallone sotto le 20 carte, come in
+      // mattaConviene) conviene invece essere più selettivi e aspettare
+      // un'occasione migliore — a meno che non sia già "d'oro" (vicina al
+      // burraco), quella vale sempre.
+      const prestoNellaMano = g.stock.length > 20;
+      const sogliaAttach = prestoNellaMano ? 1 : 2;
+      if ((gain >= 1 && giocabile && g.discard.length <= maxScarti) ||
+          (attachable >= sogliaAttach && g.discard.length <= maxScarti) ||
+          (attachableOro >= 1 && g.discard.length <= maxScarti) ||
+          (g.discard.length >= 4 && value >= sogliaValore && g.discard.length <= 10)) takePile = true;
     }
     if (g.stock.length === 0) takePile = true;
     if (before > maxMano) takePile = false;

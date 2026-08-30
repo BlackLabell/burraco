@@ -203,6 +203,97 @@ t('g.preseDalMonte riparte vuoto a ogni mano nuova', () => {
   eq(g.preseDalMonte.length, 0);
 });
 
+console.log('--- Livello 2 e 3: non scartare la carta pericolosa se c\'è un\'alternativa ---');
+// Bug reale, trovato da Fabio giocando: `utilitaCarta` alzava il rischio con
+// `u -= peso` invece di `u += peso`. Siccome scartaComputer scarta sempre la
+// carta con `u` più basso, il segno sbagliato faceva scartare PRIMA proprio
+// le carte più pericolose per l'avversario — il contrario di quello che
+// doveva succedere. Questi test isolano proprio quel caso.
+
+/** Mette una combinazione sul tavolo per la squadra dell'avversario di 0
+    (posto 1), senza toccare il turno di 0 dopo. */
+function meldAvversario(g, carte) {
+  const prevTurn = g.turn, prevPhase = g.phase;
+  g.turn = 1; g.phase = 'meld';
+  g.hands[1] = carte.slice();
+  const r = E.meldNew(g, 1, carte.map(c => c.id));
+  assert(r.ok, r.error);
+  g.turn = prevTurn; g.phase = prevPhase;
+  return g.teams[g.teamOf[1]].melds[g.teams[g.teamOf[1]].melds.length - 1];
+}
+
+t('livello 2 scarta la carta neutra, non quella che regala punti all\'avversario', () => {
+  const g = tavolo([2, null]);
+  meldAvversario(g, [4, 5, 6].map(r => C(r, 'C'))); // 4♥ 5♥ 6♥ sul tavolo, dell'avversario
+  const pericolosa = C(7, 'C');  // si aggancia alla scala avversaria
+  const neutra = C(9, 'P');      // non serve a nessuno dei due giochi
+  g.hands[0] = [pericolosa, neutra];
+  const scartata = E.scartaComputer(g, 0);
+  assert(scartata && scartata.id === neutra.id, 'doveva scartare la carta neutra, non quella pericolosa per l\'avversario');
+});
+
+t('livello 3 scarta la carta neutra, non quella che regala punti all\'avversario', () => {
+  const g = tavolo([3, null]);
+  meldAvversario(g, [4, 5, 6].map(r => C(r, 'C')));
+  const pericolosa = C(3, 'C');  // si aggancia dall'altro lato della stessa scala
+  const neutra = C(11, 'P');
+  g.hands[0] = [pericolosa, neutra];
+  const scartata = E.scartaComputer(g, 0);
+  assert(scartata && scartata.id === neutra.id, 'doveva scartare la carta neutra, non quella pericolosa per l\'avversario');
+});
+
+console.log('--- Livello 2 e 3: prendere il monte per una sola carta utile ---');
+// Bug reale segnalato da Fabio: il Pro non ha preso un monte che gli avrebbe
+// allungato una scala da 4 a 5 carte, perché serviva ALMENO due carte
+// agganciabili (`attachable >= 2`). Corretto una prima volta rendendolo
+// sempre sufficiente; Fabio stesso ha fatto notare che così era anche
+// meglio ma un po' troppo permissivo: a inizio mano va benissimo prendere
+// anche per una carta sola (c'è tempo per smaltirla), ma in fondo alla
+// mano conviene tornare a essere più selettivi e aspettare un'occasione
+// migliore — a meno che non sia già un'occasione "d'oro" (vicina al
+// burraco), quella vale sempre.
+
+t('livello 2 prende il monte per una sola carta utile a inizio mano', () => {
+  const g = tavolo([2, null]); // partita appena iniziata: tallone quasi pieno
+  const carte = [4, 5, 6, 7].map(r => C(r, 'F')); // 4♣ 5♣ 6♣ 7♣, un proprio gioco da 4 carte
+  g.hands[0] = [...carte, C(9, 'P')];
+  let r = E.meldNew(g, 0, carte.map(c => c.id));
+  assert(r.ok, r.error);
+  g.hands[0] = [C(10, 'P'), C(2, 'Q')]; // due carte qualunque, non legate al gioco
+  g.discard = [C(3, 'F')]; // allungherebbe 4♣..7♣ a 3♣..7♣: cinque carte
+  g.phase = 'draw';
+  const fonte = E.pescaComputer(g, 0);
+  eq(fonte, 'pile', 'a inizio mano doveva prendere il monte anche per una sola carta utile');
+});
+
+t('livello 2 aspetta un\'occasione migliore per una sola carta utile, in fondo alla mano', () => {
+  const g = tavolo([2, null]);
+  g.stock = g.stock.slice(0, 15); // tallone quasi esaurito: siamo in fondo alla mano
+  const carte = [4, 5, 6, 7].map(r => C(r, 'F')); // gioco da 4 carte, allungarlo a 5 non è ancora "oro"
+  g.hands[0] = [...carte, C(9, 'P')];
+  let r = E.meldNew(g, 0, carte.map(c => c.id));
+  assert(r.ok, r.error);
+  g.hands[0] = [C(10, 'P'), C(2, 'Q')];
+  g.discard = [C(3, 'F')]; // una sola carta utile
+  g.phase = 'draw';
+  const fonte = E.pescaComputer(g, 0);
+  eq(fonte, 'stock', 'in fondo alla mano, con una sola carta utile e niente di urgente, doveva pescare dal tallone');
+});
+
+t('livello 2 prende comunque il monte in fondo alla mano se la carta porta il gioco vicino al burraco', () => {
+  const g = tavolo([2, null]);
+  g.stock = g.stock.slice(0, 15); // tallone quasi esaurito
+  const carte = [3, 4, 5, 6, 7].map(r => C(r, 'F')); // già a 5 carte: allungarlo diventa un'occasione "d'oro"
+  g.hands[0] = [...carte, C(9, 'P')];
+  let r = E.meldNew(g, 0, carte.map(c => c.id));
+  assert(r.ok, r.error);
+  g.hands[0] = [C(10, 'P'), C(2, 'Q')];
+  g.discard = [C(8, 'F')]; // lo porta a 6 carte, a un passo dal burraco
+  g.phase = 'draw';
+  const fonte = E.pescaComputer(g, 0);
+  eq(fonte, 'pile', 'un\'occasione vicina al burraco vale il monte anche in fondo alla mano');
+});
+
 console.log('--- Nessun livello guarda la mano di un altro posto ---');
 
 t('carteVisibili non include mai la mano di un altro posto', () => {
