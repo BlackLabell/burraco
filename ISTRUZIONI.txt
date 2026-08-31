@@ -1,41 +1,38 @@
-Ripensamento sulla presa del monte per una carta sola
-=========================================================
+Facile e Medio ora prendono quasi sempre una matta scoperta
+=============================================================
 
-Avevi ragione tu: non era un bug, era un'ottima idea applicata sempre
-allo stesso modo invece che dove serve davvero.
+Se la carta scoperta in cima al monte scarti è un jolly o un due, Facile
+e Medio la prendono quasi sempre, anche senza nessun altro motivo — è
+una carta rara e utile ovunque, non ha senso lasciarla lì aspettando
+un'occasione migliore. "Quasi sempre" perché resta comunque soggetta al
+limite di non riempirsi troppo la mano, come ogni altra presa dal monte.
 
-Prima di questo cambio, il livello 2/3 prendeva il monte scarti per
-allungare un proprio gioco appena c'era anche una sola carta utile,
-sempre, in qualunque momento della mano. Ora dipende da quanto siamo
-avanti nella mano:
+Il Pro non ha bisogno di questa regola a parte: le sue soglie di
+raccolta (il rinforzo dell'ultima consegna) sono già così larghe che una
+matta scoperta rientra quasi sempre da sola in una condizione esistente.
 
-- A INIZIO/METÀ mano (tallone sopra le 20 carte): basta una carta
-  utile, come prima — c'è tempo per smaltire quello che si prende.
-- IN FONDO alla mano (tallone sotto le 20 carte): torna a servirne
-  almeno due, come nell'idea originale — A MENO CHE la carta non porti
-  il gioco a 6 carte o più (un passo dal burraco): quella è un'occasione
-  che vale sempre, anche a mano quasi finita.
+Ho verificato che l'aggiunta non abbia guastato il vantaggio del Pro,
+rifacendo il confronto a 1500 partite che avevi chiesto:
 
-La soglia delle 20 carte è la stessa già usata altrove nel motore per
-distinguere "c'è ancora tempo" da "siamo verso la fine".
+Confronto (1v1, 1500 partite)      Risultato
+Facile contro Medio                 46% - 54%  (vince il Medio)
+Medio contro Pro                    35% - 65%  (vince il Pro)
+Facile contro Pro                   37% - 63%  (vince il Pro)
 
-Aggiunti due test in tests/livelli.test.js che verificano proprio questo
-(aspetta in fondo mano, ma prende comunque se l'occasione è "d'oro").
+L'ordine resta netto e nella direzione giusta su tutti e tre i
+confronti: Medio batte Facile, Pro batte Medio, Pro batte Facile.
 
 File in questo zip
 ====================
 
-- src/engine.js          (il cambiamento sopra)
-- tests/livelli.test.js  (2 test nuovi)
-- sw.js                  (VERSIONE alzata a burraco-v27)
-- README.md              (versione e conteggio test aggiornati)
+- src/engine.js  (la nuova regola per Facile e Medio)
+- sw.js          (VERSIONE alzata a burraco-v29)
+- README.md      (descrizione di Facile e Medio aggiornata, versione aggiornata)
 
-Non ci sono cambiamenti a src/ui.js, styles.css, tests/engine.test.js o
-tools/simula-livelli.js rispetto all'ultima consegna: non serve
-ricaricarli se hai già applicato quella.
+Non ci sono altri file cambiati rispetto all'ultima consegna.
 
 Come si verifica
 ===================
 
-npm test                        → 88 test, tutti verdi
-node tools/simula-livelli.js
+npm test                        → 91 test, tutti verdi
+node tools/simula-livelli.js 1500

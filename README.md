@@ -7,7 +7,7 @@ con tre livelli di difficoltà) oppure **online in due**, con un codice di quatt
 dettare all'altro. Gira nel browser, si installa sul telefono e contro il computer funziona
 anche senza connessione.
 
-**Versione pubblicata:** `burraco-v27` — 30 agosto 2026
+**Versione pubblicata:** `burraco-v29` — 31 agosto 2026
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server proprio, nessun
 account a pagamento, nessun dominio da comprare.
 
@@ -30,14 +30,20 @@ avversari a est e ovest). Prima di iniziare si sceglie, posto per posto, uno dei
 del computer**:
 
 - **Facile** — cala tutto quello che può appena può, pesca senza troppi calcoli, scarta solo
-  pensando a cosa gli serve. Un avversario onesto per chi sta imparando.
+  pensando a cosa gli serve. Se in cima al monte scarti c'è una matta (jolly o due) la prende
+  quasi sempre, anche senza un motivo preciso — è troppo preziosa per lasciarla lì. Un
+  avversario onesto per chi sta imparando.
 - **Medio** — non spreca una matta su un burraco che si chiuderebbe comunque da solo con la
   carta naturale, non svela subito tutte le combinazioni che ha in mano (una apertura debole a
-  turno), e nello scarto pesa parecchio il rischio di regalare punti all'avversario.
+  turno), nello scarto pesa parecchio il rischio di regalare punti all'avversario, e come il
+  Facile prende quasi sempre il monte se la carta scoperta in cima è una matta.
 - **Pro** — in più osserva cosa prende l'avversario dal monte scarti per scartare più al
   sicuro, cala tutto insieme quando conviene mostrare le carte, rincorre il pozzetto "al volo"
-  quando è a portata, e decide se chiudere in fretta o inseguire punti guardando il punteggio
-  della partita.
+  quando è a portata, decide se chiudere in fretta o inseguire punti guardando il punteggio
+  della partita, e gioca in ampiezza: raccoglie molto più volentieri dal monte scarti per avere
+  sempre materiale pronto per il gioco più lungo e più pulito possibile. Batte chiaramente sia
+  Medio sia Facile — non solo sulla carta, verificato facendoli giocare centinaia di partite fra
+  loro (`tools/simula-livelli.js`).
 
 La scelta si ricorda da una partita all'altra, e il livello di ogni computer è scritto accanto
 al suo nome durante la partita. **Nessuno dei tre livelli legge mai le carte in mano a un altro
@@ -228,7 +234,7 @@ batte Medio batte Facile, non solo sulla carta): `node tools/simula-livelli.js`.
 
 1. Cambia il codice.
 2. `npm test` — se un test si rompe, hai toccato una regola.
-3. **Alza `VERSIONE` in `sw.js`** (es. `burraco-v26` → `burraco-v27`). Senza questo passaggio
+3. **Alza `VERSIONE` in `sw.js`** (es. `burraco-v27` → `burraco-v28`). Senza questo passaggio
    chi ha già aperto l'app continua a vedere la versione vecchia presa dalla cache.
 4. Aggiorna questo README se hai cambiato una funzionalità, e la versione in cima al file.
 5. Carica su `main`.

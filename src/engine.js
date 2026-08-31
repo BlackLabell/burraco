@@ -867,8 +867,14 @@ function calataComputer(g, p, stato) {
   const livello = livelloComputer(g, p);
   const forzaUscita = livello === 3 && puoUscireCalando(g, p);
 
-  // 1) attacca una carta a un gioco già aperto della squadra
-  for (const m of teamMelds(g, p)) {
+  // 1) attacca una carta a un gioco già aperto della squadra. Il livello 3
+  // lo fa nell'ordine giusto: prima i giochi più vicini al burraco (200/150/
+  // 100 punti sono in palio lì, non su un gioco appena iniziato), gli altri
+  // livelli nell'ordine in cui li trovano sul tavolo.
+  const propriGiochi = livello === 3
+    ? teamMelds(g, p).slice().sort((a, b) => b.slots.length - a.slots.length)
+    : teamMelds(g, p);
+  for (const m of propriGiochi) {
     for (const c of [...g.hands[p]]) {
       if (canBeWild(c) && m.matte > 0) continue;           // una sola matta per gioco
       if (canBeWild(c) && burracoType(m) === null && m.slots.length < 6) continue; // non sprecare matte su un gioco appena iniziato
@@ -968,22 +974,44 @@ function pescaComputer(g, p) {
     // attachableOro: fra quelle, quante lo porterebbero a 6+ carte (a un
     // passo dal burraco o oltre) — un'occasione che vale sempre, anche in
     // fondo alla mano, non solo quando c'è ancora tempo per smaltirla.
-    let attachable = 0, attachableOro = 0;
+    // attachableBurraco: fra le agganciabili, quante completano subito un
+    // burraco (gioco a 6 carte che arriva a 7) — 100/150/200 punti in palio
+    // sul colpo, il livello 3 non se li lascia scappare per un monte grosso.
+    let attachable = 0, attachableOro = 0, attachableBurraco = 0;
     for (const c of g.discard) {
       const m = melds.find(mm => canAttach(mm, c));
-      if (m) { attachable++; if (m.slots.length >= 5) attachableOro++; }
+      if (m) {
+        attachable++;
+        if (m.slots.length >= 5) attachableOro++;
+        if (m.slots.length === 6) attachableBurraco++;
+      }
     }
     // con il pozzetto preso e senza burraco vanno tenute due carte: un gioco che
     // svuoterebbe la mano non è calabile, e prendere il monte sarebbe inutile
     const min = minimoDaTenere(g, p, null, null);
     const giocabile = attachable > 0 || nuoviGiochi.some(c => withPile.length - c.length >= min);
     const value = g.discard.reduce((s, c) => s + cardValue(c), 0);
+    // la carta scoperta in cima al monte è una matta (jolly o due): vale
+    // quasi sempre la pena prenderla, per Facile e Medio — una matta è
+    // rarissima e utile ovunque, non serve aspettare un'occasione migliore
+    // per riconoscerne il valore. "Quasi" perché resta comunque soggetta al
+    // limite di non riempirsi troppo la mano, più sotto.
+    const cimaÈMatta = g.discard.length > 0 && canBeWild(g.discard[0]);
     let sogliaValore = 60, maxScarti = 12, maxMano = 16;
-    if (strategia === 'punta') { sogliaValore = 40; maxScarti = 16; }   // insegue punti: più disposto a ingolfarsi per un gioco grosso
-    if (strategia === 'chiudi') { maxMano = 13; }                       // vuole chiudere: non si appesantisce
+    // il livello 3 gioca in ampiezza: raccoglie molto più volentieri, anche
+    // monti meno ricchi o più tenendosi una mano più piena, per avere sempre
+    // materiale per il gioco più lungo e più pulito possibile. Provato con
+    // tools/simula-livelli.js: è la singola modifica che ha dato al Pro un
+    // vantaggio vero su Medio (dal 50% a oltre il 60% di vittorie, con un
+    // margine di punteggio medio di oltre 200 punti a partita) — i freni più
+    // fini (l'ordine delle calate, non sprecare matte, ecc.) da soli non
+    // bastavano: serviva più materiale in mano per farne uso.
+    if (livello === 3) { sogliaValore = 25; maxScarti = 18; maxMano = 20; }
+    if (strategia === 'punta') { sogliaValore = Math.min(sogliaValore, 40); maxScarti = Math.max(maxScarti, 16); }  // insegue punti: più disposto a ingolfarsi per un gioco grosso
+    if (strategia === 'chiudi') { maxMano = Math.min(maxMano, 13); }                                                // vuole chiudere: non si appesantisce
     if (livello === 1) {
       // meno selettivo: non controlla se il monte è davvero giocabile subito
-      if ((gain >= 1 && g.discard.length <= 14) || attachable >= 1) takePile = true;
+      if ((gain >= 1 && g.discard.length <= 14) || attachable >= 1 || cimaÈMatta) takePile = true;
     } else {
       // a inizio/metà mano c'è tutto il tempo per smaltire quello che si
       // prende, quindi basta anche una sola carta che allunghi un proprio
@@ -996,10 +1024,16 @@ function pescaComputer(g, p) {
       if ((gain >= 1 && giocabile && g.discard.length <= maxScarti) ||
           (attachable >= sogliaAttach && g.discard.length <= maxScarti) ||
           (attachableOro >= 1 && g.discard.length <= maxScarti) ||
+          (livello === 2 && cimaÈMatta) ||
           (g.discard.length >= 4 && value >= sogliaValore && g.discard.length <= 10)) takePile = true;
     }
     if (g.stock.length === 0) takePile = true;
     if (before > maxMano) takePile = false;
+    // il livello 3 non rinuncia mai a un monte che chiude subito un burraco,
+    // nemmeno se la mano è già piena: 100-200 punti sul colpo valgono più di
+    // qualche carta di scorta in mano, ed è comunque la stessa mossa che
+    // farebbe un giocatore vero.
+    if (livello === 3 && attachableBurraco >= 1 && g.discard.length <= 20) takePile = true;
   }
   let r = draw(g, p, takePile ? 'pile' : 'stock');
   if (!r.ok) r = draw(g, p, takePile ? 'stock' : 'pile');
