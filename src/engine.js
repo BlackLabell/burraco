@@ -692,13 +692,28 @@ function err(m) { return { ok: false, error: m }; }
    mai la mano di un altro posto, compagno di squadra compreso.
    ============================================================ */
 
-const LIVELLI_COMPUTER = { 1: 'Facile', 2: 'Medio', 3: 'Pro' };
+const LIVELLI_COMPUTER = { 1: 'Facile', 2: 'Medio', 3: 'Pro', 4: 'Pro 2' };
 
-/** Il livello del posto `p` (1/2/3). Se non è stato scelto, Medio. */
+/** Il livello del posto `p` (1/2/3/4). Se non è stato scelto, Medio. */
 function livelloComputer(g, p) {
   const l = g.livelli && g.livelli[p];
-  return l === 1 || l === 3 ? l : 2;
+  return l === 1 || l === 3 || l === 4 ? l : 2;
 }
+
+/** Le soglie che cambiano da un livello all'altro, tutte in un posto solo
+    (prima erano sparse dentro `pescaComputer` e `utilitaCarta`) — comodo
+    da ritoccare senza andare a caccia nel codice. Per i livelli 1-3 sono
+    esattamente gli stessi numeri di prima, solo spostati qui: nessun
+    cambiamento di comportamento. Il livello 4 ("Pro 2", vedi più sotto)
+    non segue soglie fisse per decidere — usa un punteggio di stato
+    dinamico — ma condivide comunque `maxMano` come rete di sicurezza. */
+const SOGLIE_LIVELLO = {
+  1: { sogliaValore: 60, maxScarti: 12, maxMano: 16, pesoRischio: 4 },
+  2: { sogliaValore: 60, maxScarti: 12, maxMano: 16, pesoRischio: 8 },
+  3: { sogliaValore: 25, maxScarti: 18, maxMano: 20, pesoRischio: 8 },
+  4: { sogliaValore: 15, maxScarti: 18, maxMano: 20, pesoRischio: 8 },
+};
+function soglie(livello) { return SOGLIE_LIVELLO[livello] || SOGLIE_LIVELLO[2]; }
 
 /** Tutte le combinazioni nuove che si possono formare da un insieme di carte. */
 function findNewMelds(cards) {
@@ -876,6 +891,143 @@ function puoUscireCalando(g, p) {
   return provaUscita(mani, giochi);
 }
 
+/* ============================================================
+   LIVELLO 4 — "PRO 2"
+   Gli altri tre livelli decidono con soglie scritte a mano (quante carte,
+   quanti punti, quante caselle...). Il Pro 2 no: prova davvero una mossa
+   su una copia dello stato (`valutaMossa`), guarda con `valoreStato` dove
+   porta, e la confronta con le altre — sempre restando dentro il vincolo
+   di sempre, come tutto il resto di questa sezione: legge solo la propria
+   mano, mai quella di un altro posto. Vedi `claude/piano-computer-online-
+   chat.md` per il criterio di accettazione (deve battere nettamente sia
+   Medio che Pro) e `claude/offline-livelli-ia.md` per come sono stati
+   ritoccati Facile/Medio/Pro — stesso metodo di verifica qui.
+   ============================================================ */
+
+/** Copia indipendente dello stato, per provare una mossa senza toccare
+    quello vero: `g` è dati puri, un giro in JSON basta (già usato per
+    verificare che annulla/rigioca tornino identici, vedi engine.test.js). */
+function clonaStato(g) { return JSON.parse(JSON.stringify(g)); }
+
+// Il mazzo di riferimento (108 carte, sempre la stessa composizione):
+// costruito una volta sola e riusato, invece di rifarlo a ogni chiamata.
+const MAZZO_RIFERIMENTO = buildDeck();
+
+/** Valore medio di una carta ancora nascosta a `p` — non nella sua mano,
+    non calata, non nel monte scarti: potrebbe essere nel tallone o in
+    mano a chiunque altro. È un calcolo esatto sulla composizione fissa
+    del mazzo (108 carte, due copie di ognuna più 4 jolly), non una stima
+    a occhio: serve al livello 4 per giudicare quanto vale una pescata dal
+    tallone, che — a differenza di prendere il monte — non si può
+    simulare davvero (la carta è nascosta anche a lui). */
+function valoreMedioNascosto(g, p) {
+  const viste = {};
+  for (const c of carteVisibili(g, p)) {
+    const k = c.r === 0 ? 'J' : c.r + '_' + c.s;
+    viste[k] = (viste[k] || 0) + 1;
+  }
+  let totale = 0, quante = 0;
+  const contate = {};
+  for (const c of MAZZO_RIFERIMENTO) {
+    const k = c.r === 0 ? 'J' : c.r + '_' + c.s;
+    contate[k] = (contate[k] || 0) + 1;
+    if (contate[k] <= (viste[k] || 0)) continue;   // questa copia è già vista da qualche parte
+    totale += cardValue(c);
+    quante++;
+  }
+  return quante ? totale / quante : 8;
+}
+
+/**
+ * Quanto conviene lo stato attuale alla squadra di `p`, guardando solo
+ * quello che `p` può vedere legittimamente: la propria mano, i giochi
+ * calati di entrambe le squadre (pubblici), il monte scarti, quante carte
+ * ha in mano ciascun altro giocatore (il NUMERO è pubblico, le carte no)
+ * e il punteggio di partita. Più alto è, meglio sta la squadra di `p`.
+ */
+function valoreStato(g, p) {
+  const mia = g.teamOf[p], avv = 1 - mia;
+  let v = 0;
+  // punti calati, più il bonus di burraco già maturato (200/150/100): un
+  // gioco a 7 carte pulite vale già 200 in prospettiva, non solo a mano
+  // finita — è quello che spinge a completarlo e a non rovinarlo con una
+  // matta di troppo, senza bisogno di una regola apposta per quel caso
+  // (mattaConviene, che i livelli 2 e 3 usano invece come soglia fissa).
+  for (const t of [0, 1]) {
+    const segno = t === mia ? 1 : -1;
+    for (const m of g.teams[t].melds) v += segno * (meldPoints(m) + (BURRACO_POINTS[burracoType(m)] || 0));
+  }
+  v += (g.teams[mia].pozzetto ? 40 : -20) - (g.teams[avv].pozzetto ? 40 : -20);
+  // le carte in mano sono punti a rischio se la mano finisce prima di
+  // calarle: le proprie si conoscono per intero, quelle degli altri solo
+  // per numero — il resto si stima con il valore medio di una carta
+  // ancora nascosta (vedi sopra).
+  v -= g.hands[p].reduce((s, c) => s + cardValue(c), 0);
+  // senza altro, la riga sopra farebbe sembrare conveniente scartare
+  // sempre la carta di valore più alto (una matta, un asso...): tolto dalla
+  // mano, il suo "rischio" sparisce, e basta da solo a farla risultare la
+  // scelta migliore — l'esatto contrario di quello che deve succedere.
+  // Serve un contrappeso: quanto una carta è utile da TENERE, per la stessa
+  // mano e per i propri giochi già aperti (stessa idea di utilitaCarta,
+  // incorporata qui invece che in un punteggio a parte, così vale anche
+  // per le decisioni di pesca e di calata, non solo per lo scarto).
+  for (const c of g.hands[p]) {
+    // una matta vale sempre la pena tenersela: il "premio" deve superare il
+    // suo stesso valore di carta (30 per il jolly), altrimenti — tolta dalla
+    // mano — il sollievo dal suo peso (uguale al premio, per costruzione)
+    // la farebbe sembrare comunque la scelta migliore da scartare (bug
+    // trovato e corretto, vedi tests/livelli.test.js). Resta comunque
+    // meno del doppio del suo valore, così usarla in un gioco buono — che
+    // guadagna 2× il suo valore, più il salto di burraco se è quello il
+    // caso — continua a convenire di più che tenerla ferma in mano.
+    if (canBeWild(c)) { v += 35; continue; }
+    for (const o of g.hands[p]) {
+      if (o.id === c.id) continue;
+      if (o.r === c.r) v += 3;
+      if (o.s === c.s && Math.abs(o.r - c.r) === 1) v += 2.5;
+      if (o.s === c.s && Math.abs(o.r - c.r) === 2) v += 1;
+    }
+    for (const m of g.teams[mia].melds) if (canAttach(m, c)) v += 3.5;
+  }
+  const mediaNascosta = valoreMedioNascosto(g, p);
+  for (let q = 0; q < g.nPlayers; q++) {
+    if (q === p) continue;
+    const segno = g.teamOf[q] === mia ? -1 : 1;
+    v += segno * g.hands[q].length * mediaNascosta;
+  }
+  // la carta scoperta in cima al monte, se aiuta un gioco avversario, è un
+  // rischio acceso — vale meno lasciarla lì (o metterla lì scartando)
+  if (g.discard.length) {
+    const cima = g.discard[0];
+    for (const m of g.teams[avv].melds) {
+      if (canAttach(m, cima)) v -= 12;
+      else if (m.type === 'seq' && m.suit === cima.s && (Math.abs(cima.r - m.lo) <= 2 || Math.abs(cima.r - m.hi) <= 2)) v -= 6;
+    }
+    for (const presa of (g.preseDalMonte || [])) {
+      if (g.teamOf[presa.p] !== avv) continue;
+      for (const pc of presa.carte) if (pc.r === cima.r) v -= 3;
+    }
+  }
+  // quanto ha fretta di chiudere, secondo lo stesso giudizio già usato dal
+  // livello 3 (strategiaPartita): una mano più leggera vale di più se
+  // conviene chiudere presto, un po' meno se conviene inseguire un gioco
+  // grosso.
+  const fretta = { chiudi: 3, equilibrata: 1.5, punta: 0.5 }[strategiaPartita(g, p)];
+  v -= fretta * g.hands[p].length;
+  return v;
+}
+
+/** Prova una mossa su una copia dello stato e restituisce il valore
+    risultante per `p` (vedi valoreStato) — non tocca `g`. `applica`
+    riceve la copia e ci fa la mossa vera (draw/meldNew/addToMeld/
+    discard...); se non è andata a buon fine, restituisce null. */
+function valutaMossa(g, p, applica) {
+  const copia = clonaStato(g);
+  const r = applica(copia);
+  if (!r || r.ok === false) return null;
+  return valoreStato(copia, p);
+}
+
 /**
  * UNA sola mossa di calata o attacco. Ritorna quel che ha fatto, oppure null.
  * Spezzare il turno in mosse singole serve all'interfaccia, che le mostra
@@ -883,6 +1035,7 @@ function puoUscireCalando(g, p) {
  */
 function calataComputer(g, p, stato) {
   const livello = livelloComputer(g, p);
+  if (livello === 4) return calataPro2(g, p, stato);
   const forzaUscita = livello === 3 && puoUscireCalando(g, p);
 
   // 1) attacca una carta a un gioco già aperto della squadra. Il livello 3
@@ -930,6 +1083,56 @@ function calataComputer(g, p, stato) {
   return null;
 }
 
+/** Livello 4: prova ogni attacco e ogni combinazione nuova possibile
+    simulandoli (valutaMossa), e fa quello che porta al valore di stato più
+    alto — invece delle soglie fisse aprireConviene/mattaConviene degli
+    altri livelli. Se nessuna mossa migliora lo stato, non fa niente: torna
+    null, il turno passa allo scarto (mai un blocco che tiene tutto e non
+    scarta mai — vedi turnoComputer/scartaComputer, sempre garantito).
+    Un'eccezione: se si può restare senza carte calando (puoUscireCalando,
+    la stessa mossa forte che insegue il livello 3), niente esitazioni —
+    quella si fa comunque, anche se il calcolo fine sembrasse indeciso. */
+function calataPro2(g, p, stato) {
+  const forzaUscita = puoUscireCalando(g, p);
+  // Stessa decisività del livello 3 (Pro): attacca sempre ai propri giochi,
+  // nell'ordine giusto (prima quelli più vicini al burraco), e cala sempre
+  // ogni combinazione nuova possibile, senza il freno aprireConviene del
+  // livello 2 — provato e scartato anche lì (vedi sopra): tenersi una
+  // combinazione pronta in mano è quasi sempre punti regalati se la mano
+  // finisce prima. La differenza dinamica sta in UN punto solo, dove il
+  // livello 3 usa una soglia fissa (mattaConviene): qui si prova davvero la
+  // mossa (valutaMossa) e si guarda se lo stato risultante è comunque
+  // buono, invece di applicare la stessa regola a ogni matta.
+  const propriGiochi = teamMelds(g, p).slice().sort((a, b) => b.slots.length - a.slots.length);
+  for (const m of propriGiochi) {
+    for (const c of [...g.hands[p]]) {
+      if (canBeWild(c) && m.matte > 0) continue;
+      if (canBeWild(c) && burracoType(m) === null && m.slots.length < 6) continue;
+      if (!canAttach(m, c)) continue;
+      const test = solveWith(m, c);
+      if (!test || (test.matte > m.matte && !canBeWild(c))) continue;
+      if (canBeWild(c) && !forzaUscita) {
+        const base = valoreStato(g, p);
+        const v = valutaMossa(g, p, copia => addToMeld(copia, p, m.id, [c.id]));
+        if (v === null || v < base) continue;   // questa matta, qui, conviene di più tenerla
+      }
+      if (addToMeld(g, p, m.id, [c.id]).ok) return { t: 'add', meld: m.id, n: 1 };
+    }
+  }
+  const cands = findNewMelds(g.hands[p]);
+  cands.sort((a, b) => {
+    if (b.length !== a.length) return b.length - a.length;
+    return a.filter(canBeWild).length - b.filter(canBeWild).length;
+  });
+  for (const cand of cands) {
+    if (meldNew(g, p, cand.map(c => c.id)).ok) {
+      if (stato) stato.aperte++;
+      return { t: 'meld', n: cand.length };
+    }
+  }
+  return null;
+}
+
 /** Punteggio di utilità di una carta rispetto al resto della mano. */
 function utilitaCarta(g, p, c, livello) {
   const hand = g.hands[p].filter(x => x !== c);
@@ -951,7 +1154,7 @@ function utilitaCarta(g, p, c, livello) {
   // scartava proprio le carte più pericolose per l'avversario umano, perché
   // il segno era invertito fin da questa formula precedente il livello 2/3.)
   const avv = g.teams[1 - g.teamOf[p]].melds;
-  const peso = livello >= 2 ? 8 : 4;
+  const peso = soglie(livello).pesoRischio;
   for (const m of avv) if (canAttach(m, c)) u += peso;
   if (livello >= 2) {
     // margine di sicurezza: anche una carta solo vicina a un gioco avversario è rischiosa
@@ -980,6 +1183,7 @@ function utilitaCarta(g, p, c, livello) {
 function pescaComputer(g, p) {
   if (g.phase !== 'draw') return null;
   const livello = livelloComputer(g, p);
+  if (livello === 4) return pescaPro2(g, p);
   const strategia = livello === 3 ? strategiaPartita(g, p) : 'equilibrata';
   let takePile = false;
   if (g.discard.length > 0) {
@@ -1015,7 +1219,6 @@ function pescaComputer(g, p) {
     // per riconoscerne il valore. "Quasi" perché resta comunque soggetta al
     // limite di non riempirsi troppo la mano, più sotto.
     const cimaÈMatta = g.discard.length > 0 && canBeWild(g.discard[0]);
-    let sogliaValore = 60, maxScarti = 12, maxMano = 16;
     // il livello 3 gioca in ampiezza: raccoglie molto più volentieri, anche
     // monti meno ricchi o più tenendosi una mano più piena, per avere sempre
     // materiale per il gioco più lungo e più pulito possibile. Provato con
@@ -1023,8 +1226,9 @@ function pescaComputer(g, p) {
     // vantaggio vero su Medio (dal 50% a oltre il 60% di vittorie, con un
     // margine di punteggio medio di oltre 200 punti a partita) — i freni più
     // fini (l'ordine delle calate, non sprecare matte, ecc.) da soli non
-    // bastavano: serviva più materiale in mano per farne uso.
-    if (livello === 3) { sogliaValore = 25; maxScarti = 18; maxMano = 20; }
+    // bastavano: serviva più materiale in mano per farne uso. Soglie in
+    // `soglie(livello)` (vedi sopra "IL COMPUTER"): stessi numeri di prima.
+    let { sogliaValore, maxScarti, maxMano } = soglie(livello);
     if (strategia === 'punta') { sogliaValore = Math.min(sogliaValore, 40); maxScarti = Math.max(maxScarti, 16); }  // insegue punti: più disposto a ingolfarsi per un gioco grosso
     if (strategia === 'chiudi') { maxMano = Math.min(maxMano, 13); }                                                // vuole chiudere: non si appesantisce
     if (livello === 1) {
@@ -1059,9 +1263,74 @@ function pescaComputer(g, p) {
   return takePile ? 'pile' : 'stock';
 }
 
+/** Livello 4: prendere il monte è l'unica delle due pescate che si può
+    davvero simulare (si sa esattamente cosa contiene) — si confronta il
+    valore di stato risultante con una stima di cosa varrebbe pescare dal
+    tallone (valoreMedioNascosto: quella carta resta nascosta anche al
+    livello 4, non si sbircia). Niente soglie fisse su quante carte, quanto
+    valgono, quanto piena è la mano: solo maxMano resta come rete di
+    sicurezza, condivisa con gli altri livelli. */
+function pescaPro2(g, p) {
+  const { sogliaValore, maxScarti, maxMano } = soglie(4);
+  const strategia = strategiaPartita(g, p);
+  let takePile = false;
+  if (g.discard.length > 0) {
+    const before = g.hands[p].length;
+    const withPile = g.hands[p].concat(g.discard);
+    const melds = teamMelds(g, p);
+    // Le stesse tre spie che usa il livello 3, ma con soglie ancora più
+    // larghe (vedi soglie(4) sopra) — "gioca in ampiezza" è la singola
+    // regola che si è rivelata più efficace di ogni raffinatezza, quindi
+    // qui si spinge ancora oltre invece di reinventarla.
+    let attachable = 0, attachableOro = 0, attachableBurraco = 0;
+    for (const c of g.discard) {
+      const m = melds.find(mm => canAttach(mm, c));
+      if (m) {
+        attachable++;
+        if (m.slots.length >= 5) attachableOro++;
+        if (m.slots.length === 6) attachableBurraco++;
+      }
+    }
+    const nuoviGiochi = findNewMelds(withPile);
+    const gain = nuoviGiochi.length - findNewMelds(g.hands[p]).length;
+    const min = minimoDaTenere(g, p, null, null);
+    const giocabile = attachable > 0 || nuoviGiochi.some(c => withPile.length - c.length >= min);
+    const value = g.discard.reduce((s, c) => s + cardValue(c), 0);
+    const cimaÈMatta = canBeWild(g.discard[0]);
+    const prestoNellaMano = g.stock.length > 20;
+    const sogliaAttach = prestoNellaMano ? 1 : 2;
+    let sv = sogliaValore, ms = maxScarti;
+    if (strategia === 'punta') { sv = Math.min(sv, 30); ms = Math.max(ms, 18); }
+    if ((gain >= 1 && giocabile && g.discard.length <= ms) ||
+        (attachable >= sogliaAttach && g.discard.length <= ms) ||
+        (attachableOro >= 1 && g.discard.length <= ms) ||
+        cimaÈMatta ||
+        (g.discard.length >= 4 && value >= sv && g.discard.length <= 12)) takePile = true;
+    // rifinitura dinamica: quando le spie sopra non bastano a decidere,
+    // si prova davvero la mossa e si guarda dove porta (valutaMossa),
+    // contro una stima di cosa varrebbe una pescata alla cieca dal tallone
+    // (valoreMedioNascosto — quella carta resta nascosta anche qui).
+    if (!takePile) {
+      const conMonte = valutaMossa(g, p, copia => draw(copia, p, 'pile'));
+      if (conMonte !== null) {
+        const stimaPescata = valoreStato(g, p) - valoreMedioNascosto(g, p);
+        if (conMonte > stimaPescata + 4) takePile = true;   // margine: solo se è chiaramente meglio
+      }
+    }
+    if (g.stock.length === 0) takePile = true;
+    if (before > maxMano) takePile = false;
+    if (attachableBurraco >= 1 && g.discard.length <= 24) takePile = true;
+  }
+  let r = draw(g, p, takePile ? 'pile' : 'stock');
+  if (!r.ok) r = draw(g, p, takePile ? 'stock' : 'pile');
+  if (!r.ok) { nextTurn(g); return null; }
+  return takePile ? 'pile' : 'stock';
+}
+
 /** Lo scarto: la carta meno utile che sia lecito scartare. */
 function scartaComputer(g, p) {
   const livello = livelloComputer(g, p);
+  if (livello === 4) return scartaPro2(g, p);
   const scored = g.hands[p].map(c => ({ c, u: utilitaCarta(g, p, c, livello) }));
   scored.sort((a, b) => a.u - b.u);
   // Non è una regola del gioco: è solo un accorgimento per il computer, per
@@ -1074,6 +1343,32 @@ function scartaComputer(g, p) {
     if (i >= 0) scored.push(scored.splice(i, 1)[0]);
   }
   for (const x of scored) {
+    const r = discard(g, p, x.c.id);
+    if (r.ok) return x.c;
+  }
+  nextTurn(g);   // caso limite: nessuno scarto possibile
+  return null;
+}
+
+/** Livello 4: prova a scartare ogni carta in mano, simulando (valutaMossa)
+    e guardando lo stato che ne risulta — invece di ordinare per un
+    punteggio di utilità calcolato a priori (utilitaCarta). Include già da
+    solo il rischio di regalare punti all'avversario (valoreStato guarda la
+    carta scoperta in cima al monte dopo lo scarto) e il "non sprecare un
+    burraco pulito", senza bisogno di pesi a parte. */
+function scartaPro2(g, p) {
+  const candidati = g.hands[p]
+    .map(c => ({ c, v: valutaMossa(g, p, copia => discard(copia, p, c.id)) }))
+    .filter(x => x.v !== null);
+  candidati.sort((a, b) => b.v - a.v);
+  // stesso accorgimento anti-loop degli altri livelli (vedi g.presaMonteId
+  // più sopra, non è una regola del gioco): la carta appena presa dal
+  // monte va in fondo alla lista dei tentativi.
+  if (g.presaMonteId != null && candidati.length > 1) {
+    const i = candidati.findIndex(x => x.c.id === g.presaMonteId);
+    if (i >= 0) candidati.push(candidati.splice(i, 1)[0]);
+  }
+  for (const x of candidati) {
     const r = discard(g, p, x.c.id);
     if (r.ok) return x.c;
   }
@@ -1104,6 +1399,7 @@ const ENGINE = {
   teamMelds, hasBurraco, canEmptyHand, canMeldToZero, minimoDaTenere, findNewMelds, sortCards,
   LIVELLI_COMPUTER, livelloComputer, carteVisibili, puoUscireCalando, strategiaPartita,
   turnoComputer, pescaComputer, calataComputer, scartaComputer,
+  valoreStato, valoreMedioNascosto,
   applicaMossa, inizioMano, rigiocaMano, annullabile, annulla,
 };
 export default ENGINE;

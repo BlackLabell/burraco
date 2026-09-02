@@ -720,8 +720,8 @@ function applicaNome() {
   if (G && G.names) G.names[HUMAN] = n || 'Tu';
 }
 
-/** Livello del computer scelto l'ultima volta (Facile/Medio/Pro), per non dover
-    riscegliere ogni partita. Un posto solo — 'est' — basta per l'1v1. */
+/** Livello del computer scelto l'ultima volta (Facile/Medio/Pro/Pro 2), per non
+    dover riscegliere ogni partita. Un posto solo — 'est' — basta per l'1v1. */
 function livelliSalvati() {
   const base = { est: 2, nord: 2, ovest: 2 };
   try { return { ...base, ...JSON.parse(localStorage.getItem('burraco.livelli') || '{}') }; }
@@ -1736,10 +1736,10 @@ async function rientraOnline() {
   }
 }
 
-const NOMI_LIVELLO = { 1: 'Facile', 2: 'Medio', 3: 'Pro' };
+const NOMI_LIVELLO = { 1: 'Facile', 2: 'Medio', 3: 'Pro', 4: 'Pro 2' };
 function opzioniLivello(id, etichetta, valore) {
   return `<label class="opt-livello"><span>${etichetta}</span>
-    <select id="${id}">${[1, 2, 3].map(n =>
+    <select id="${id}">${[1, 2, 3, 4].map(n =>
       `<option value="${n}" ${n === valore ? 'selected' : ''}>${NOMI_LIVELLO[n]}</option>`).join('')}
     </select></label>`;
 }

@@ -3,11 +3,11 @@
 ### ▶ [Apri l'app — blacklabell.github.io/burraco](https://blacklabell.github.io/burraco/)
 
 Burraco italiano con le regole ufficiali: **contro il computer** (uno contro uno o a coppie,
-con tre livelli di difficoltà) oppure **online in due**, con un codice di quattro lettere da
+con quattro livelli di difficoltà) oppure **online in due**, con un codice di quattro lettere da
 dettare all'altro. Gira nel browser, si installa sul telefono e contro il computer funziona
 anche senza connessione.
 
-**Versione pubblicata:** `burraco-v32` — 2 settembre 2026
+**Versione pubblicata:** `burraco-v33` — 2 settembre 2026
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server proprio, nessun
 account a pagamento, nessun dominio da comprare.
 
@@ -26,8 +26,8 @@ account a pagamento, nessun dominio da comprare.
 ### Al tavolo, contro il computer
 
 Uno contro uno o a coppie (quattro posti a croce: tu a sud, il tuo compagno a nord, gli
-avversari a est e ovest). Prima di iniziare si sceglie, posto per posto, uno dei **tre livelli
-del computer**:
+avversari a est e ovest). Prima di iniziare si sceglie, posto per posto, uno dei **quattro
+livelli del computer**:
 
 - **Facile** — cala tutto quello che può appena può, pesca senza troppi calcoli, scarta solo
   pensando a cosa gli serve. Se in cima al monte scarti c'è una matta (jolly o due) la prende
@@ -44,13 +44,21 @@ del computer**:
   sempre materiale pronto per il gioco più lungo e più pulito possibile. Batte chiaramente sia
   Medio sia Facile — non solo sulla carta, verificato facendoli giocare centinaia di partite fra
   loro (`tools/simula-livelli.js`).
+- **Pro 2** — stessa base decisa del Pro (cala sempre tutto quello che può, nell'ordine giusto,
+  raccoglie ancora più volentieri dal monte scarti), ma per le scelte più delicate — vale la
+  pena usare questa matta adesso? conviene prendere questo monte o rischiare il tallone? quale
+  carta scartare — non segue soglie scritte a tavolino: **prova davvero la mossa su una copia
+  della partita e guarda a cosa porta** (`valoreStato`/`valutaMossa` in `src/engine.js`), prima
+  di deciderla. Batte nettamente sia il Pro sia il Medio — verificato con `tools/simula-
+  livelli.js`, vedi i numeri in `claude/offline-livelli-ia.md` nel progetto.
 
 La scelta si ricorda da una partita all'altra, e il livello di ogni computer è scritto accanto
-al suo nome durante la partita. **Nessuno dei tre livelli legge mai le carte in mano a un altro
-giocatore**, compagno di squadra compreso: ognuno ragiona solo sulla propria mano più tutto
-quello che è già pubblico sul tavolo (giochi calati, monte scarti, punteggio, chi ha preso
-cosa) — niente rete neurale, niente apprendimento automatico, solo regole scritte a mano, come
-il resto del motore.
+al suo nome durante la partita. **Nessuno dei quattro livelli legge mai le carte in mano a un
+altro giocatore**, compagno di squadra compreso: ognuno ragiona solo sulla propria mano più
+tutto quello che è già pubblico sul tavolo (giochi calati, monte scarti, quante carte ha in
+mano ciascun altro, punteggio, chi ha preso cosa) — niente rete neurale, niente apprendimento
+automatico, solo regole scritte a mano (anche il livello 4, che "prova le mosse" ma sempre
+dentro regole fisse, non impara nulla da una partita all'altra), come il resto del motore.
 
 Il tavolo si distribuisce come al vero: si mischia, si alza, si fanno i pozzetti carta per
 carta, poi le mani in giro; si può saltare toccando lo schermo. Ogni mossa — pescata, calata,
@@ -230,7 +238,7 @@ Da quel momento parte a schermo intero come un'app e funziona anche in aereo.
 
 ```bash
 npm start     # apre http://localhost:8080
-npm test      # 95 test: motore di gioco + le regole dei tre livelli del computer
+npm test      # 103 test: motore di gioco + le regole dei quattro livelli del computer
 ```
 
 `npm start` usa un piccolo server incluso nel progetto: serve perché i moduli JavaScript e il

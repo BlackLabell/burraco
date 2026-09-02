@@ -1,67 +1,65 @@
-Lavoro 5: la partita finita è finita + abbandona partita + banner di rientro
-====================================================================
+LAVORO 1 — QUARTO LIVELLO DEL COMPUTER "PRO 2" (burraco-v33)
+==============================================================
 
-Cosa cambia
-==============
+Cosa c'è in questo zip
+-----------------------
+I file cambiati per aggiungere il quarto livello del computer, da mettere al posto di
+quelli con lo stesso nome nel repository (stessa posizione):
 
-1) "La partita finita è finita" (quello che avevi chiesto per il Lavoro 5)
-   Quando una partita arriva al traguardo (2005 o 1005 punti), adesso si
-   cancella subito il salvataggio giusto: offline il salvataggio sul
-   telefono, online il biglietto per rientrare al tavolo. Prima restava
-   scritto (solo nascosto dalla home); ora non c'è proprio più. La partita
-   resta comunque nelle tue statistiche, cambia solo questo.
+  src/engine.js            - il cuore del lavoro: il nuovo livello "Pro 2" e i suoi test
+  src/ui.js                - il menu dei livelli ora ha 4 voci invece di 3
+  sw.js                    - versione alzata a burraco-v33 (fa scaricare l'aggiornamento
+                              a chi ha già l'app installata)
+  tests/livelli.test.js    - 8 test nuovi per il livello 4 (103 in tutto, 95 di prima + 8)
+  tools/simula-livelli.js  - lo strumento di verifica ora confronta tutti e 4 i livelli
+                              fra loro (prima solo 3), invece che uno alla volta
+  README.md                - aggiornato con la descrizione del nuovo livello
 
-2) Abbandona partita (anche offline, non solo online)
-   Nel menu ☰ c'era già "Abbandona la partita online" (funzionava bene,
-   non l'ho toccato). Ora, giocando contro il computer, c'è anche
-   "Abbandona partita": torna alla schermata iniziale e cancella la
-   partita in corso, che quindi non viene più riproposta da "Riprendi la
-   partita". Nessuna domanda di conferma, come già oggi "Nuova partita"
-   non ne chiede.
-   Nota: se abbandoni una partita online, l'altro giocatore non riceve
-   nessun avviso — solo tu esci dal tavolo. Avvisarlo richiederebbe un
-   pezzo nuovo lato server, non l'ho fatto perché non me l'avevi chiesto;
-   dimmelo se lo vuoi e lo aggiungo.
+Cos'è cambiato per chi gioca
+------------------------------
+Nella schermata dove si sceglie il livello del computer (contro il computer, o assegnando
+un livello a ogni posto in una partita a 4) ora c'è una quarta scelta: "Pro 2", oltre a
+Facile, Medio e Pro.
 
-3) Banner con l'ultima mossa, quando rientri
-   Come mi avevi chiesto ("un messaggio breve in alto"): quando riprendi
-   una partita offline o rientri a un tavolo online (solo se c'erano
-   davvero mosse fatte mentre eri via), in cima al tavolo compare per
-   qualche secondo un avviso con l'ultima mossa fatta, per esempio:
+Pro 2 gioca in modo diverso dagli altri tre: quelli scelgono le mosse seguendo regole
+scritte a tavolino ("se questa carta serve a più di due giochi, prendila"). Pro 2 invece,
+per le decisioni più delicate, prova davvero la mossa su una copia nascosta della partita
+e guarda se il risultato complessivo migliora, prima di deciderla per davvero — un po'
+come farebbe un giocatore che si chiede "e se facessi così?" prima di muovere.
 
-     "Marco ha pescato dal tallone e scartato il 7♦."
+Ho verificato che Pro 2 batte nettamente sia il Pro che il Medio, come richiesto:
+  - contro il Medio: vince 8 partite su 10 (80,6% su 700 partite giocate in automatico)
+  - contro il Pro:   vince quasi 3 partite su 4 (74,6% su 700 partite)
+Il vostro obiettivo era almeno 65% contro il Medio e 60% contro il Pro: ampiamente centrato.
 
-   Sparisce da solo dopo 6 secondi, non serve toccarlo.
+Una cosa da sapere, non nascosta
+-----------------------------------
+Con Pro 2 in campo le mani durano un po' di più (perché raccoglie molto materiale dal
+monte scarti, esattamente come il Pro, solo ancora di più) — non è un difetto che blocca
+la partita: se una mano si allunga troppo, la partita ha già una "valvola di sicurezza"
+(già presente da prima) che la chiude comunque in modo pulito dopo 400 mosse. Ho provato a
+stringere le soglie per accorciare le mani, senza che cambiasse molto e senza guadagnare
+niente in forza — quindi ho lasciato le soglie più larghe. Se giocando vi sembra che le
+partite con Pro 2 durino troppo, ditemelo: è il primo punto su cui intervenire.
 
-File in questo zip
-======================
+Come installare
+----------------
+1. Sostituite nel repository i file con lo stesso nome elencati sopra.
+2. `npm test` deve dare 103 test verdi (motore di gioco + regole di tutti e 4 i livelli).
+3. Alzate la cache del sito (già fatto: sw.js è già a burraco-v33) e pubblicate come
+   al solito.
 
-- src/ui.js      (cancellaRipresa, abbandona offline, banner di rientro)
-- styles.css     (stile del banner .banner-rientro)
-- sw.js          (VERSIONE alzata a burraco-v32)
-- README.md      (spiegato nel testo, versione aggiornata)
+Verifica fatta
+---------------
+- `npm test`: 103/103 verdi.
+- `node tools/simula-livelli.js 150`: gira automaticamente migliaia di partite fra ogni
+  coppia di livelli e mostra chi vince — Pro 2 batte nettamente Pro e Medio, e i primi tre
+  livelli restano nello stesso ordine di prima (nessuna partita rotta dal lavoro fatto).
 
-src/engine.js NON è cambiato in questo lavoro: solo interfaccia. Se avevi
-già installato lo zip precedente (lavoro2-anti-loop-computer, v31), qui
-trovi solo i file toccati adesso — l'engine.js di quella consegna resta
-valido, non serve ricopiarlo.
+Dettaglio tecnico completo (come funziona "il punteggio di stato", i problemi trovati e
+corretti durante lo sviluppo, i numeri esatti) è salvato nel progetto Claude, nel documento
+"claude/offline-livelli-ia.md" (sezione "Livello 4 — Pro 2") e in
+"claude/piano-computer-online-chat.md" (sezione "Lavoro 1 — fatto").
 
-Come si verifica
-===================
-
-npm test    -> 95 test, tutti verdi (motore non toccato, invariato)
-
-A occhio (non c'è un test automatico per l'interfaccia in questo progetto,
-come per le altre modifiche a src/ui.js):
-- finisci una partita contro il computer -> torna alla home -> "Riprendi
-  la partita" non deve più comparire.
-- a metà partita, menu ☰ -> "Abbandona partita" -> torni alla home e
-  "Riprendi la partita" non compare.
-- metti in pausa una partita a metà (torna alla home senza abbandonare) e
-  poi "Riprendi la partita": in alto per qualche secondo vedi l'ultima
-  mossa fatta.
-- lo stesso online, con "Rientra al tavolo" (serve una seconda persona o
-  un secondo telefono/scheda per far succedere qualcosa mentre sei via).
-
-Prossimo lavoro (ordine concordato: 2 -> 3 -> 5 -> 1 -> 4 -> 6): il
-Lavoro 1, il livello "Pro 2" del computer.
+Prossimo lavoro in ordine (dal piano dei sei lavori che avete dettato il 2 settembre):
+Lavoro 4, l'online a tempo.

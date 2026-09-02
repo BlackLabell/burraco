@@ -294,6 +294,35 @@ t('livello 2 prende comunque il monte in fondo alla mano se la carta porta il gi
   eq(fonte, 'pile', 'un\'occasione vicina al burraco vale il monte anche in fondo alla mano');
 });
 
+console.log('--- Livello 1 e 2: una matta in cima al monte si prende quasi sempre ---');
+
+t('livello 1 prende il monte se in cima c\'è un jolly, anche senza altro motivo', () => {
+  const g = tavolo([1, null]);
+  g.hands[0] = [C(9, 'C'), C(11, 'Q'), C(13, 'F')]; // carte qualunque, nessun gioco aperto
+  g.discard = [JOLLY(), C(4, 'P'), C(5, 'P')]; // il jolly è in cima
+  g.phase = 'draw';
+  const fonte = E.pescaComputer(g, 0);
+  eq(fonte, 'pile', 'un jolly in cima al monte va preso, anche senza altro uso immediato');
+});
+
+t('livello 2 prende il monte se in cima c\'è un due, anche senza altro motivo', () => {
+  const g = tavolo([2, null]);
+  g.hands[0] = [C(9, 'C'), C(11, 'Q'), C(13, 'F')];
+  g.discard = [C(2, 'C'), C(4, 'P'), C(5, 'P')]; // un due (matta) in cima
+  g.phase = 'draw';
+  const fonte = E.pescaComputer(g, 0);
+  eq(fonte, 'pile', 'un due in cima al monte va preso, anche senza altro uso immediato');
+});
+
+t('livello 1 non prende il monte se la matta è sotto, non in cima', () => {
+  const g = tavolo([1, null]);
+  g.hands[0] = [C(9, 'C'), C(11, 'Q'), C(13, 'F')];
+  g.discard = [C(4, 'P'), C(6, 'F'), JOLLY()]; // il jolly c'è, ma non è la carta scoperta (e le altre due carte non formano comunque un nuovo gioco)
+  g.phase = 'draw';
+  const fonte = E.pescaComputer(g, 0);
+  eq(fonte, 'stock', 'senza altro motivo, e con la matta sepolta nel mazzo, non conviene prendere tutto il monte');
+});
+
 console.log('--- Nessun livello guarda la mano di un altro posto ---');
 
 t('carteVisibili non include mai la mano di un altro posto', () => {
@@ -301,4 +330,84 @@ t('carteVisibili non include mai la mano di un altro posto', () => {
   const segrete = new Set(g.hands[1].map(c => c.id).concat(g.hands[2].map(c => c.id)).concat(g.hands[3].map(c => c.id)));
   const viste = E.carteVisibili(g, 0);
   for (const c of viste) assert(!segrete.has(c.id), 'una carta di un altro posto è finita fra le carte visibili a 0');
+});
+
+console.log('--- Livello 4 ("Pro 2"): decide con un punteggio di stato, non con soglie fisse ---');
+
+t('il livello 4 esiste e si chiama "Pro 2"', () => {
+  const g = tavolo([null, 4]);
+  eq(E.livelloComputer(g, 1), 4);
+  eq(E.LIVELLI_COMPUTER[4], 'Pro 2');
+});
+
+t('valoreStato: calare un tris valido migliora il punteggio di stato', () => {
+  const g = tavolo([4, null]);
+  const tris = [C(7, 'C'), C(7, 'Q'), C(7, 'F')];
+  g.hands[0] = [...tris, C(9, 'P')];
+  const prima = E.valoreStato(g, 0);
+  const r = E.meldNew(g, 0, tris.map(c => c.id));
+  assert(r.ok, r.error);
+  const dopo = E.valoreStato(g, 0);
+  assert(dopo > prima, 'calare un tris pulito deve migliorare il valore di stato, non peggiorarlo');
+});
+
+t('livello 4: calataComputer cala da solo una combinazione valida, senza soglie fisse da superare', () => {
+  const g = tavolo([4, null]);
+  const tris = [C(7, 'C'), C(7, 'Q'), C(7, 'F')];
+  g.hands[0] = [...tris, C(9, 'P')];
+  const mossa = E.calataComputer(g, 0, { aperte: 0 });
+  assert(mossa && mossa.t === 'meld', 'doveva calare il tris');
+  eq(g.teams[0].melds.length, 1);
+});
+
+t('livello 4: NON scarta una matta se ha carte peggiori da scartare (bug trovato e corretto: valoreStato ' +
+  'toglierebbe "peso" a ogni carta rimossa dalla mano, matte comprese, se non si contrappesa quanto vale tenersele)', () => {
+  const g = tavolo([4, null]);
+  // nessuna sinergia fra queste tre: ranghi e semi lontani, niente giochi
+  // aperti a cui agganciarsi — sono le carte "peggiori" da tenere, la
+  // matta è la migliore. Deve scartare una di queste tre, mai la matta.
+  const junk = [C(3, 'C'), C(8, 'Q'), C(13, 'F')];
+  g.hands[0] = [JOLLY(), ...junk];
+  const scartata = E.scartaComputer(g, 0);
+  assert(scartata, 'deve riuscire a scartare qualcosa');
+  assert(scartata.r !== 0, 'non doveva scartare il jolly: aveva di meglio da buttare via');
+});
+
+t('livello 4: la carta appena presa dal monte va in fondo ai tentativi di scarto, come gli altri livelli ' +
+  '(accorgimento anti-loop per il computer, non una regola — vedi engine.test.js)', () => {
+  const g = tavolo([4, null]);
+  const cima = C(9, 'C');
+  g.hands[0] = [cima, C(4, 'Q'), C(11, 'F')];
+  g.presaMonteId = cima.id;
+  const scartata = E.scartaComputer(g, 0);
+  assert(scartata, 'deve riuscire a scartare qualcosa');
+  assert(scartata.id !== cima.id, 'doveva evitare la carta appena presa dal monte, avendo altro da scartare');
+});
+
+t('livello 4 prende il monte se in cima c\'è una matta, come gli altri livelli', () => {
+  const g = tavolo([4, null]);
+  g.hands[0] = [C(9, 'C'), C(11, 'Q'), C(13, 'F')];
+  g.discard = [JOLLY(), C(4, 'P'), C(5, 'P')];
+  g.phase = 'draw';
+  const fonte = E.pescaComputer(g, 0);
+  eq(fonte, 'pile', 'un jolly in cima al monte va preso anche dal livello 4');
+});
+
+t('livello 4 non supera il tetto della mano (maxMano) nemmeno con una matta in cima al monte', () => {
+  const g = tavolo([4, null]);
+  const semi = ['C', 'Q', 'F', 'P'];
+  g.hands[0] = Array.from({ length: 21 }, (_, i) => C(3 + (i % 10), semi[i % 4]));   // mano già oltre il tetto
+  g.discard = [JOLLY(), C(4, 'P'), C(5, 'P')];
+  g.phase = 'draw';
+  const fonte = E.pescaComputer(g, 0);
+  eq(fonte, 'stock', 'con la mano già oltre il tetto, anche una matta in cima non basta a far prendere il monte');
+});
+
+t('livello 4 non legge mai la mano di un altro posto (stesso vincolo degli altri tre)', () => {
+  const g = E.newGame('2v2', { seed: 78, livelli: [null, 4, 4, 4] });
+  const segrete = new Set(g.hands[0].map(c => c.id));
+  // valoreStato guarda solo il numero di carte degli altri posti, mai il contenuto
+  E.valoreStato(g, 1);
+  const viste = E.carteVisibili(g, 1);
+  for (const c of viste) assert(!segrete.has(c.id), 'una carta del posto umano è finita fra le carte visibili al livello 4');
 });
