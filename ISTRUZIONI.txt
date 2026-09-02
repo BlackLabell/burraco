@@ -1,51 +1,37 @@
-Non si può più riscartare subito la carta appena presa dal monte
+Correzione: non era una regola, è un accorgimento per il computer
 ====================================================================
 
-Primo dei sei lavori che mi hai dettato (livello Pro 2, questo divieto,
-semipulito, online a tempo, "partita finita è finita", chat). Ordine
-scelto insieme: 2 -> 3 -> 5 -> 1 -> 4 -> 6. Questo è il Lavoro 2, e
-sistemata anche la decisione sul Lavoro 3 (nessun codice da cambiare lì,
-solo la spiegazione nelle regole).
+Questo zip sostituisce quello di prima (v30): lì avevo fatto un divieto
+troppo largo, valido anche per te. Hai chiarito il punto vero: non è una
+regola di gioco, è solo un trucco per evitare che sia il COMPUTER a
+impuntarsi in un loop (prende una carta dal monte, non riesce a
+giocarla, la ributta all'infinito — è un problema visto succedere
+davvero, non ipotetico).
 
-Prima di scrivere codice ho controllato i due regolamenti (FGB e
-AICS/FITAB), come mi avevi chiesto: il divieto non è scritto in nessuno
-dei due. Resta quindi implementato come una scelta di questa app, non
-come regola verificata, e l'ho segnato chiaramente come tale nel
-regolamento dentro l'app e nei documenti del progetto.
+Cosa cambia rispetto allo zip precedente
+============================================
 
-Come funziona
-================
+- Tu (giocatore umano) ora puoi riscartare subito la carta appena presa
+  dal monte, senza nessun limite, nessun messaggio, nessun segno sulla
+  carta. Come prima di qualunque modifica.
+- Il computer, a tutti i livelli, quando deve scegliere cosa scartare
+  mette quella carta in fondo alla lista delle sue scelte: la evita se
+  ha altro di meglio da buttare, ma la scarta comunque se non ha
+  alternative (per esempio se è rimasta l'unica carta in mano) — non è
+  un divieto rigido, solo una preferenza che rompe il loop.
 
-Quando prendi tutto il monte scarti, la carta che era scoperta in cima
-(quella che si vedeva sul tavolo prima di prenderla) non si può ributtare
-subito: bisogna giocare prima un'altra carta. Vale per te e per il
-computer, a tutti i livelli, offline e online.
-
-Un'eccezione: se quella carta resta l'UNICA che hai in mano, il divieto
-si sospende, altrimenti resteresti bloccato senza nessuno scarto lecito
-(stessa idea del vicolo cieco della matta, che c'era già).
-
-Nell'app la carta ha un piccolo segno (↺) finché è vietata, e se provi a
-scartarla comunque te lo dice subito con un messaggio, senza farla volare
-verso il monte per poi respingerla.
-
-Semipulito (Lavoro 3): confermato
-====================================
-
-Ho controllato anche la definizione di "semipulito" sui due regolamenti,
-come chiesto. Dicono la stessa cosa, quasi parola per parola: la matta
-deve stare a un'estremità del gioco (precede o segue almeno sette carte),
-non in mezzo. È esattamente la regola già nel motore — nessuna modifica
-di codice, solo spiegata meglio nel regolamento dentro l'app e nei
-documenti del progetto, con le citazioni esatte.
+Semipulito (Lavoro 3): confermato, invariato rispetto allo zip
+precedente — la matta deve stare a un'estremità del gioco, verificato
+sui due regolamenti (dettagli nel regolamento dentro l'app).
 
 File in questo zip
 ====================
 
-- src/engine.js  (il nuovo divieto)
-- src/ui.js      (segno visivo, messaggio, regolamento in app aggiornato)
-- styles.css     (stile del segno ↺)
-- sw.js          (VERSIONE alzata a burraco-v30)
+- src/engine.js  (accorgimento anti-loop solo per il computer)
+- src/ui.js      (tolto tutto quello che riguardava l'umano: segno,
+                   messaggio, voce nel regolamento — non era una regola)
+- styles.css     (tolto lo stile del segno ↺, non serve più)
+- sw.js          (VERSIONE alzata a burraco-v31 — non usare più la v30)
 - README.md      (regole e versione aggiornate)
 
 Non ci sono altri file cambiati rispetto all'ultima consegna.
@@ -53,9 +39,9 @@ Non ci sono altri file cambiati rispetto all'ultima consegna.
 Come si verifica
 ===================
 
-npm test    -> 96 test, tutti verdi (9 nuovi per questo lavoro)
+npm test    -> 95 test, tutti verdi
 node tools/simula-livelli.js 500   -> l'ordine fra i livelli resta netto
 
-Prossimo lavoro (nel prompt che mi hai dato, l'ordine è 2 -> 3 -> 5 -> 1
--> 4 -> 6): il Lavoro 5, "la partita finita è finita" — quando una
-partita finisce, la home non deve più offrire di riprenderla.
+Prossimo lavoro (ordine concordato: 2 -> 3 -> 5 -> 1 -> 4 -> 6): il
+Lavoro 5, "la partita finita è finita" — quando una partita finisce, la
+home non deve più offrire di riprenderla.

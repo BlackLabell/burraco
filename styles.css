@@ -304,13 +304,6 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
   transform:translateY(-12px); border-color:var(--accent-2);
   box-shadow:0 6px 14px var(--shadow), 0 0 0 2px var(--accent-2);
 }
-/* Appena presa dal monte scarti: si può giocare o tenere, ma non ributtare
-   subito. Un piccolo richiamo sull'angolo, non un blocco che nasconde la carta. */
-.hand .card.vietata::after{
-  content:'↺'; position:absolute; top:2px; right:3px;
-  font-size:.62em; line-height:1; opacity:.62; pointer-events:none;
-}
-.hand .card.vietata.sel{border-color:var(--accent-2); box-shadow:0 6px 14px var(--shadow), 0 0 0 2px #b8862f}
 /* ventaglio: quando le carte non ci stanno in fila si sovrappongono,
    e la riga resta una sola a qualsiasi larghezza di schermo */
 .hand.ventaglio{flex-wrap:nowrap; gap:0; justify-content:center}

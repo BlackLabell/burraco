@@ -7,7 +7,7 @@ con tre livelli di difficoltà) oppure **online in due**, con un codice di quatt
 dettare all'altro. Gira nel browser, si installa sul telefono e contro il computer funziona
 anche senza connessione.
 
-**Versione pubblicata:** `burraco-v30` — 2 settembre 2026
+**Versione pubblicata:** `burraco-v31` — 2 settembre 2026
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server proprio, nessun
 account a pagamento, nessun dominio da comprare.
 
@@ -116,7 +116,10 @@ partita in `g.livelli` (mai cambiati durante il gioco, mai indovinati). Vincolo 
 tutte le funzioni della sezione, senza eccezioni: ognuna riceve la partita e il posto, e legge
 solo la mano di quel posto — tutto il resto che i livelli più alti usano in più (giochi calati,
 monte scarti, punteggio, chi ha preso cosa dal monte) è informazione già pubblica. Verificato
-sia leggendo il codice sia con un test dedicato.
+sia leggendo il codice sia con un test dedicato. Un accorgimento tecnico, non una regola di
+gioco: il computer evita — se ha altre carte fra cui scegliere — di riscartare subito la carta
+appena presa dal monte, per non ripetere il loop di prendi-e-ributta visto in partite vere. Un
+umano non ha questo limite: può ributtarla subito se vuole.
 
 **Online**: cinque funzioni SQL su Supabase (progetto `burraco`, piano gratuito, server in
 Germania) — `apri_tavolo`, `siediti`, `guarda_tavolo`, `manda_mossa`, `leggi_mosse` — parlate
@@ -256,9 +259,7 @@ conta come matta; la matta incastrata si sposta solo se fra le carte aggiunte c'
 naturale che rappresenta. Pozzetto preso quando si finiscono le carte, "al volo" se si finisce
 senza scartare. Quando nel tallone restano due carte la mano finisce (Art. 17). Per chiudere
 servono pozzetto preso, almeno un burraco e mano vuota; non si chiude scartando una matta né
-calando l'ultima carta senza scarto. Non si può riscartare subito la carta appena presa dal monte
-scarti (si sospende se resta l'unica carta scartabile) — non è scritto nei regolamenti, è una
-scelta di questa app per evitare il tira-e-molla infinito sulla stessa carta.
+calando l'ultima carta senza scarto.
 
 Punti: jolly 30, pinella 20, asso 15, dall'8 al re 10, dal 3 al 7 cinque.
 Burraco pulito 200, semipulito (matta a un'estremità, almeno 7 naturali di fila) 150, sporco 100.

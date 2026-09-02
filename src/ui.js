@@ -433,8 +433,6 @@ function render() {
     else if (G.phase === 'draw') hint = 'Pesca dal tallone o prendi il monte.';
     else if (calataValida) hint = 'Tocca la tua zona per calare.';
     else if (scelte.length >= 3) hint = 'Non fanno né scala né tris.';
-    else if (scelte.length === 1 && scelte[0].id === G.cartaPresaVietata && G.hands[HUMAN].length > 1) hint =
-      'L\'hai appena presa dal monte: non puoi ributtarla subito, gioca prima un\'altra carta.';
     else if (scelte.length === 1) hint = quantiAccettano
       ? 'Scarta sul monte, o attacca al gioco acceso.'
       : 'Tocca il monte per scartarla.';
@@ -492,8 +490,7 @@ function render() {
   let mano = manoOrdinata();
   if (dealCount !== null) mano = mano.slice(0, dealCount);
   if (pozzettoAnim && pozzettoAnim.p === HUMAN) mano = mano.slice(0, pozzettoAnim.n);
-  const vietata = c => c.id === G.cartaPresaVietata && G.hands[HUMAN].length > 1;
-  const hand = mano.map((c, i) => cardHTML(c, [sel.has(c.id) ? 'sel' : '', vietata(c) ? 'vietata' : ''].filter(Boolean).join(' '), i)).join('');
+  const hand = mano.map((c, i) => cardHTML(c, sel.has(c.id) ? 'sel' : '', i)).join('');
 
   /* — azioni — */
 
@@ -886,16 +883,7 @@ function bindOnce() {
     if (pile) {
       const mio = !busy && !G.handOver && G.turn === HUMAN && dealCount === null;
       // una carta scelta + clic sul monte scarti = la scarti
-      if (pile.dataset.act === 'pile' && mio && G.phase === 'meld' && sel.size === 1) {
-        const id = [...sel][0];
-        if (id === G.cartaPresaVietata && G.hands[HUMAN].length > 1) {
-          Suoni.suona('no');
-          say('L\'hai appena presa dal monte: non puoi ributtarla subito, gioca prima un\'altra carta.', true);
-          render();
-        } else {
-          doDiscard();
-        }
-      }
+      if (pile.dataset.act === 'pile' && mio && G.phase === 'meld' && sel.size === 1) doDiscard();
       else doDraw(pile.dataset.act);
       return;
     }
@@ -1857,11 +1845,6 @@ per leggerlo per intero.</p>
   <li>Oltre i 400 turni una mano si chiude come per tallone esaurito. Non è una regola: è una rete
       di sicurezza perché il gioco non si impianti. In centinaia di partite simulate non è mai
       scattata.</li>
-  <li><b>Non si può riscartare subito la carta appena presa dal monte scarti</b>: verificato
-      apposta, non è scritta in nessuno dei due regolamenti — senza questo freno si potrebbe
-      prendere e ributtare all'infinito la stessa carta appena vista da entrambi. Vale solo per il
-      turno in cui l'hai presa, e si sospende se resta l'unica carta che ti è rimasta da
-      scartare.</li>
 </ul>
 
 <h3>Fonti</h3>
