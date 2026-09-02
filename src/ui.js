@@ -433,6 +433,8 @@ function render() {
     else if (G.phase === 'draw') hint = 'Pesca dal tallone o prendi il monte.';
     else if (calataValida) hint = 'Tocca la tua zona per calare.';
     else if (scelte.length >= 3) hint = 'Non fanno né scala né tris.';
+    else if (scelte.length === 1 && scelte[0].id === G.cartaPresaVietata && G.hands[HUMAN].length > 1) hint =
+      'L\'hai appena presa dal monte: non puoi ributtarla subito, gioca prima un\'altra carta.';
     else if (scelte.length === 1) hint = quantiAccettano
       ? 'Scarta sul monte, o attacca al gioco acceso.'
       : 'Tocca il monte per scartarla.';
@@ -490,7 +492,8 @@ function render() {
   let mano = manoOrdinata();
   if (dealCount !== null) mano = mano.slice(0, dealCount);
   if (pozzettoAnim && pozzettoAnim.p === HUMAN) mano = mano.slice(0, pozzettoAnim.n);
-  const hand = mano.map((c, i) => cardHTML(c, sel.has(c.id) ? 'sel' : '', i)).join('');
+  const vietata = c => c.id === G.cartaPresaVietata && G.hands[HUMAN].length > 1;
+  const hand = mano.map((c, i) => cardHTML(c, [sel.has(c.id) ? 'sel' : '', vietata(c) ? 'vietata' : ''].filter(Boolean).join(' '), i)).join('');
 
   /* — azioni — */
 
@@ -883,7 +886,16 @@ function bindOnce() {
     if (pile) {
       const mio = !busy && !G.handOver && G.turn === HUMAN && dealCount === null;
       // una carta scelta + clic sul monte scarti = la scarti
-      if (pile.dataset.act === 'pile' && mio && G.phase === 'meld' && sel.size === 1) doDiscard();
+      if (pile.dataset.act === 'pile' && mio && G.phase === 'meld' && sel.size === 1) {
+        const id = [...sel][0];
+        if (id === G.cartaPresaVietata && G.hands[HUMAN].length > 1) {
+          Suoni.suona('no');
+          say('L\'hai appena presa dal monte: non puoi ributtarla subito, gioca prima un\'altra carta.', true);
+          render();
+        } else {
+          doDiscard();
+        }
+      }
       else doDraw(pile.dataset.act);
       return;
     }
@@ -1823,19 +1835,33 @@ per leggerlo per intero.</p>
 <h3>Art. 18 — Punteggi</h3>
 <ul>
   <li>Jolly 30 · pinella 20 · asso 15 · dall'8 al re 10 · dal 3 al 7 cinque.</li>
-  <li><b>Burraco</b>: gioco di almeno 7 carte. <b>Pulito</b> 200 · <b>semipulito</b> 150 ·
-      <b>sporco</b> 100.</li>
+  <li><b>Burraco</b>: gioco di almeno 7 carte.
+    <ul>
+      <li><b>Pulito</b> (200): tutte carte naturali, nessuna matta dentro.</li>
+      <li><b>Semipulito</b> (150): la matta sta a <b>un'estremità</b> del gioco, con almeno 7
+          carte naturali di fila accanto a lei — non in mezzo. «La matta precede o segue almeno
+          sette carte»: stessa identica regola, quasi parola per parola, in entrambi i
+          regolamenti citati più sotto (FGB art. 14, AICS/FITAB art. 13). Non è
+          un'interpretazione di questa app: è quello che dicono i due codici.</li>
+      <li><b>Sporco</b> (100): la matta sta chiusa in mezzo alle carte naturali, o comunque il
+          gioco ha meno di 7 carte naturali di fila.</li>
+    </ul>
+  </li>
   <li>Bonus di <b>chiusura</b> 100. <b>Pozzetto non preso</b> −100.</li>
   <li>Le carte calate si sommano, quelle rimaste in mano si sottraggono.</li>
 </ul>
 
 <h3>Scelte di questa app</h3>
 <ul>
-  <li><b>Semipulito</b>: gioco di 8 o più carte con la matta a un'estremità, cioè con almeno 7
-      carte naturali di fila.</li>
   <li><b>Super burraco</b> (250) e <b>burraco reale</b> (300) del codice FGB: non conteggiati.</li>
   <li>Oltre i 400 turni una mano si chiude come per tallone esaurito. Non è una regola: è una rete
-      di sicurezza perché il gioco non si impianti. In 300 partite simulate non è mai scattata.</li>
+      di sicurezza perché il gioco non si impianti. In centinaia di partite simulate non è mai
+      scattata.</li>
+  <li><b>Non si può riscartare subito la carta appena presa dal monte scarti</b>: verificato
+      apposta, non è scritta in nessuno dei due regolamenti — senza questo freno si potrebbe
+      prendere e ributtare all'infinito la stessa carta appena vista da entrambi. Vale solo per il
+      turno in cui l'hai presa, e si sospende se resta l'unica carta che ti è rimasta da
+      scartare.</li>
 </ul>
 
 <h3>Fonti</h3>

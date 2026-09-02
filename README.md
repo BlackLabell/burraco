@@ -7,7 +7,7 @@ con tre livelli di difficoltà) oppure **online in due**, con un codice di quatt
 dettare all'altro. Gira nel browser, si installa sul telefono e contro il computer funziona
 anche senza connessione.
 
-**Versione pubblicata:** `burraco-v29` — 31 agosto 2026
+**Versione pubblicata:** `burraco-v30` — 2 settembre 2026
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server proprio, nessun
 account a pagamento, nessun dominio da comprare.
 
@@ -256,10 +256,13 @@ conta come matta; la matta incastrata si sposta solo se fra le carte aggiunte c'
 naturale che rappresenta. Pozzetto preso quando si finiscono le carte, "al volo" se si finisce
 senza scartare. Quando nel tallone restano due carte la mano finisce (Art. 17). Per chiudere
 servono pozzetto preso, almeno un burraco e mano vuota; non si chiude scartando una matta né
-calando l'ultima carta senza scarto.
+calando l'ultima carta senza scarto. Non si può riscartare subito la carta appena presa dal monte
+scarti (si sospende se resta l'unica carta scartabile) — non è scritto nei regolamenti, è una
+scelta di questa app per evitare il tira-e-molla infinito sulla stessa carta.
 
 Punti: jolly 30, pinella 20, asso 15, dall'8 al re 10, dal 3 al 7 cinque.
-Burraco pulito 200, semipulito 150, sporco 100. Chiusura +100, pozzetto non preso −100.
+Burraco pulito 200, semipulito (matta a un'estremità, almeno 7 naturali di fila) 150, sporco 100.
+Chiusura +100, pozzetto non preso −100.
 Le carte rimaste in mano si sottraggono. Partita a 2005 punti, oppure 1005.
 
 Il regolamento completo diviso per articoli, con le fonti, è dentro l'app: menu ☰ → *Regolamento*.

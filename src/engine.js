@@ -333,6 +333,9 @@ function startHand(g) {
   g.handOver = false;
   g.result = null;
   g.tookPileThisTurn = false;
+  // id della carta che era in cima al monte scarti quando è stata presa in
+  // questo turno — non si può riscartarla subito, vedi draw() e discard().
+  g.cartaPresaVietata = null;
   g.mosse = [];                 // registro della mano: vedi "REGISTRO DELLE MOSSE"
   g.puntiInizioMano = [...g.matchScore];   // per rigiocare la mano senza contare due volte
   // Chi ha preso il monte scarti in questa mano, e cosa c'era dentro: informazione
@@ -359,7 +362,14 @@ function draw(g, p, source) {
   if (g.phase !== 'draw') return err('Hai già pescato.');
   if (source === 'pile') {
     if (g.discard.length === 0) return err('Il monte degli scarti è vuoto.');
+    // presa[0] è la carta che era scoperta in cima — quella che si vedeva sul
+    // tavolo prima di prendere tutto il monte. Non è una regola scritta nei
+    // due regolamenti (verificato: né FGB né AICS/FITAB la vietano), è una
+    // consuetudine scelta apposta per non lasciar riscartare all'infinito la
+    // stessa carta appena vista da entrambi. Vale solo per questo turno: si
+    // azzera in nextTurn().
     const presa = g.discard.splice(0, g.discard.length);
+    g.cartaPresaVietata = presa[0].id;
     g.hands[p].push(...presa);
     g.hands[p].sort(sortCards);
     g.tookPileThisTurn = true;
@@ -371,6 +381,7 @@ function draw(g, p, source) {
     g.hands[p].push(g.stock.shift());
     g.hands[p].sort(sortCards);
     g.tookPileThisTurn = false;
+    g.cartaPresaVietata = null;
     g.mosse.push({ t: 'p', p, s: 'stock' });
     g.log.push({ t: 'draw', p, src: 'stock' });
   }
@@ -521,6 +532,13 @@ function discard(g, p, id) {
   if (g.turn !== p || g.phase !== 'meld') return err('Devi prima pescare.');
   const c = g.hands[p].find(x => x.id === id);
   if (!c) return err('Carta non in mano.');
+  // Non si può riscartare subito la carta appena presa scoperta dal monte —
+  // a meno che non sia rimasta l'unica carta in mano: lì si sospende il
+  // divieto, altrimenti il giocatore resterebbe bloccato senza nessuno
+  // scarto lecito (stesso spirito del vicolo cieco della matta).
+  if (id === g.cartaPresaVietata && g.hands[p].length > 1) {
+    return err('L\'hai appena presa dal monte: non puoi ributtarla subito, gioca un\'altra carta prima.');
+  }
   const last = g.hands[p].length === 1;
   if (last) {
     if (canBeWild(c) && g.teams[g.teamOf[p]].pozzetto && hasBurraco(g, g.teamOf[p])) {
@@ -542,6 +560,7 @@ function nextTurn(g) {
   g.turn = (g.turn + 1) % g.nPlayers;
   g.phase = 'draw';
   g.tookPileThisTurn = false;
+  g.cartaPresaVietata = null;
   // Valvola di sicurezza, non una regola: se nessuno pesca mai dal tallone la mano
   // potrebbe girare all'infinito. Una mano vera ne dura una quarantina di turni.
   g.turni = (g.turni || 0) + 1;

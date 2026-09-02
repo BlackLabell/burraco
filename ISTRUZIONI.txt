@@ -1,38 +1,61 @@
-Facile e Medio ora prendono quasi sempre una matta scoperta
-=============================================================
+Non si può più riscartare subito la carta appena presa dal monte
+====================================================================
 
-Se la carta scoperta in cima al monte scarti è un jolly o un due, Facile
-e Medio la prendono quasi sempre, anche senza nessun altro motivo — è
-una carta rara e utile ovunque, non ha senso lasciarla lì aspettando
-un'occasione migliore. "Quasi sempre" perché resta comunque soggetta al
-limite di non riempirsi troppo la mano, come ogni altra presa dal monte.
+Primo dei sei lavori che mi hai dettato (livello Pro 2, questo divieto,
+semipulito, online a tempo, "partita finita è finita", chat). Ordine
+scelto insieme: 2 -> 3 -> 5 -> 1 -> 4 -> 6. Questo è il Lavoro 2, e
+sistemata anche la decisione sul Lavoro 3 (nessun codice da cambiare lì,
+solo la spiegazione nelle regole).
 
-Il Pro non ha bisogno di questa regola a parte: le sue soglie di
-raccolta (il rinforzo dell'ultima consegna) sono già così larghe che una
-matta scoperta rientra quasi sempre da sola in una condizione esistente.
+Prima di scrivere codice ho controllato i due regolamenti (FGB e
+AICS/FITAB), come mi avevi chiesto: il divieto non è scritto in nessuno
+dei due. Resta quindi implementato come una scelta di questa app, non
+come regola verificata, e l'ho segnato chiaramente come tale nel
+regolamento dentro l'app e nei documenti del progetto.
 
-Ho verificato che l'aggiunta non abbia guastato il vantaggio del Pro,
-rifacendo il confronto a 1500 partite che avevi chiesto:
+Come funziona
+================
 
-Confronto (1v1, 1500 partite)      Risultato
-Facile contro Medio                 46% - 54%  (vince il Medio)
-Medio contro Pro                    35% - 65%  (vince il Pro)
-Facile contro Pro                   37% - 63%  (vince il Pro)
+Quando prendi tutto il monte scarti, la carta che era scoperta in cima
+(quella che si vedeva sul tavolo prima di prenderla) non si può ributtare
+subito: bisogna giocare prima un'altra carta. Vale per te e per il
+computer, a tutti i livelli, offline e online.
 
-L'ordine resta netto e nella direzione giusta su tutti e tre i
-confronti: Medio batte Facile, Pro batte Medio, Pro batte Facile.
+Un'eccezione: se quella carta resta l'UNICA che hai in mano, il divieto
+si sospende, altrimenti resteresti bloccato senza nessuno scarto lecito
+(stessa idea del vicolo cieco della matta, che c'era già).
+
+Nell'app la carta ha un piccolo segno (↺) finché è vietata, e se provi a
+scartarla comunque te lo dice subito con un messaggio, senza farla volare
+verso il monte per poi respingerla.
+
+Semipulito (Lavoro 3): confermato
+====================================
+
+Ho controllato anche la definizione di "semipulito" sui due regolamenti,
+come chiesto. Dicono la stessa cosa, quasi parola per parola: la matta
+deve stare a un'estremità del gioco (precede o segue almeno sette carte),
+non in mezzo. È esattamente la regola già nel motore — nessuna modifica
+di codice, solo spiegata meglio nel regolamento dentro l'app e nei
+documenti del progetto, con le citazioni esatte.
 
 File in questo zip
 ====================
 
-- src/engine.js  (la nuova regola per Facile e Medio)
-- sw.js          (VERSIONE alzata a burraco-v29)
-- README.md      (descrizione di Facile e Medio aggiornata, versione aggiornata)
+- src/engine.js  (il nuovo divieto)
+- src/ui.js      (segno visivo, messaggio, regolamento in app aggiornato)
+- styles.css     (stile del segno ↺)
+- sw.js          (VERSIONE alzata a burraco-v30)
+- README.md      (regole e versione aggiornate)
 
 Non ci sono altri file cambiati rispetto all'ultima consegna.
 
 Come si verifica
 ===================
 
-npm test                        → 91 test, tutti verdi
-node tools/simula-livelli.js 1500
+npm test    -> 96 test, tutti verdi (9 nuovi per questo lavoro)
+node tools/simula-livelli.js 500   -> l'ordine fra i livelli resta netto
+
+Prossimo lavoro (nel prompt che mi hai dato, l'ordine è 2 -> 3 -> 5 -> 1
+-> 4 -> 6): il Lavoro 5, "la partita finita è finita" — quando una
+partita finisce, la home non deve più offrire di riprenderla.
