@@ -19,6 +19,8 @@ let dealCount = null;     // quante carte sono già state distribuite (null = di
 let online = false;       // partita contro una persona, non contro il computer
 let pozzettoAnim = null;  // {p, n}: le carte del pozzetto che stanno arrivando in mano a p
 let scartiNascosti = false;   // durante la distribuzione, finché non si gira la prima carta
+let rientroInfo = '';     // banner in alto con l'ultima mossa fatta, quando si rientra
+let rientroTimer = null;  // il timer che lo fa sparire da solo
 /* Il proprio posto al tavolo. Contro il computer è sempre il posto 0;
    online, chi entra in un tavolo già aperto siede al posto 1. Tutto il
    disegno parte da qui: "i vostri giochi" sono quelli della squadra di
@@ -66,6 +68,15 @@ function biglietto() {
     const d = JSON.parse(localStorage.getItem(BIGLIETTO) || 'null');
     return d && d.codice ? d : null;
   } catch (e) { return null; }
+}
+/* Una partita finita è finita: la home non deve più offrire di riprenderla
+   né di rientrarci. Si cancella il salvataggio giusto per dove si è —
+   offline il salvataggio, online il biglietto — così un'altra partita in
+   corso dall'altra parte non viene toccata per sbaglio. Serve sia a fine
+   partita sia quando la si abbandona apposta (vedi menuDialog). */
+function cancellaRipresa() {
+  if (online) { try { localStorage.removeItem(BIGLIETTO); } catch (e) { } }
+  else { try { localStorage.removeItem(SAVE); } catch (e) { } }
 }
 
 function loadTheme() {
@@ -501,6 +512,7 @@ function render() {
   const croce = G.mode === '2v2';
   $('board').className = 'panel board' + (croce ? ' croce4' : '') + (myTurn && dealCount === null ? ' turno' : '');
   $('board').innerHTML = `
+    ${rientroInfo ? `<div class="banner-rientro">${esc(rientroInfo)}</div>` : ''}
     <div class="tavolo">
       ${croce ? `<div class="posto-lato">${seatHTML((HUMAN + 3) % 4)}</div>` : ''}
       <div class="campo">
@@ -567,6 +579,30 @@ function adattaGiochi() {
     el.classList.add('infila');
     cerca();
   }
+}
+
+/** Frase breve sull'ultima mossa fatta, per il banner di chi rientra: legge
+    le ultime righe della cronaca (G.log) e le racconta a voce, senza
+    toccare lo stato del gioco. Se pesca e scarta sono della stessa persona
+    e di seguito, le racconta insieme ("ha pescato... e scartato..."). */
+function ultimaMossaTesto() {
+  const righe = (G.log || []).filter(e => e.t !== 'hand' && e.t !== 'end');
+  if (!righe.length) return '';
+  const ultima = righe[righe.length - 1];
+  const prima = righe.length > 1 ? righe[righe.length - 2] : null;
+  if (prima && ultima.t === 'discard' && prima.t === 'draw' && prima.p === ultima.p) {
+    const dove = prima.src === 'pile' ? 'preso il monte scarti' : 'pescato dal tallone';
+    return `${G.names[ultima.p]} ha ${dove} e scartato ${ultima.c}.`;
+  }
+  const testo = (logLine(ultima).h || '').replace(/<[^>]+>/g, '');
+  return testo ? testo + '.' : '';
+}
+
+/** Mostra il banner con l'ultima mossa e lo fa sparire da solo dopo un po'. */
+function mostraRientro(testo) {
+  if (rientroTimer) { clearTimeout(rientroTimer); rientroTimer = null; }
+  rientroInfo = testo || '';
+  if (rientroInfo) rientroTimer = setTimeout(() => { rientroInfo = ''; rientroTimer = null; render(); }, 6000);
 }
 
 function logLine(e) {
@@ -721,6 +757,7 @@ function riprendiPartita() {
   if (!G) return mostraHome();
   applicaNome();
   nascondiHome();
+  mostraRientro(ultimaMossaTesto());
   render();
   if (!G.handOver && G.turn !== HUMAN) runAI();
 }
@@ -750,6 +787,9 @@ async function avviaOnline(partita, posto, mosse) {
   const arretrate = mosse || [];
   for (const r of arretrate) applicaSenzaVolo(r.mossa);
   salvaBiglietto();
+  // solo un vero rientro (mosse già fatte da recuperare) merita il banner:
+  // chi si siede a un tavolo appena aperto non ha niente da riguardare
+  if (arretrate.length) mostraRientro(ultimaMossaTesto());
   if (!arretrate.length) { dealing = true; await distribuisci(); } else render();
   annunciaTurno();
   ciclaRete();
@@ -1379,6 +1419,7 @@ function finishHand() {
   Suoni.suona(G.finished ? (G.winner === MIA() ? 'vittoria' : 'sconfitta') : 'fineMano');
   Suoni.abbassa(true);
   save();                 // così "Riprendi" non ripropone una partita già finita
+  if (G.finished) cancellaRipresa();   // la partita finita è finita: via anche il salvataggio/biglietto
   const d = G.result.detail;
   const row = (label, f) => `<tr><td>${label}</td><td>${f(d[MIA()])}</td><td>${f(d[LORO()])}</td></tr>`;
   const sign = v => (v > 0 ? '+' : '') + v;
@@ -1871,7 +1912,9 @@ function menuDialog() {
        <button class="btn" id="m-problema" style="text-align:left">Segnala un problema</button>
        <button class="btn" id="m-nuova" style="text-align:left">Nuova partita</button>
        <button class="btn primary" id="m-home" style="text-align:left">Torna alla schermata iniziale</button>
-       ${online ? `<button class="btn" id="m-esci" style="text-align:left">Abbandona la partita online</button>` : ''}
+       ${online
+         ? `<button class="btn" id="m-esci" style="text-align:left">Abbandona la partita online</button>`
+         : `<button class="btn" id="m-abbandona" style="text-align:left">Abbandona partita</button>`}
      </div>`,
     `<button class="btn ghost" id="m-ok">Chiudi</button>`);
   $('m-ok').onclick = closeModal;
@@ -1884,6 +1927,10 @@ function menuDialog() {
   $('m-nuova').onclick = () => { closeModal(); newGameDialog(); };
   $('m-home').onclick = () => { closeModal(); save(); mostraHome(); };
   if ($('m-esci')) $('m-esci').onclick = () => { closeModal(); chiudiOnline(); mostraHome(); };
+  // Abbandona partita (offline): come chiudiOnline ma per il salvataggio locale
+  // — cancella la partita in corso così la home non la ripropone più (vedi
+  // cancellaRipresa) e torna alla schermata iniziale.
+  if ($('m-abbandona')) $('m-abbandona').onclick = () => { closeModal(); cancellaRipresa(); mostraHome(); };
 }
 
 function punteggioDialog() {

@@ -7,7 +7,7 @@ con tre livelli di difficoltà) oppure **online in due**, con un codice di quatt
 dettare all'altro. Gira nel browser, si installa sul telefono e contro il computer funziona
 anche senza connessione.
 
-**Versione pubblicata:** `burraco-v31` — 2 settembre 2026
+**Versione pubblicata:** `burraco-v32` — 2 settembre 2026
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server proprio, nessun
 account a pagamento, nessun dominio da comprare.
 
@@ -57,14 +57,23 @@ carta, poi le mani in giro; si può saltare toccando lo schermo. Ogni mossa — 
 scarto, turno del computer — si vede volare invece di comparire di colpo. C'è musica di
 sottofondo e gli effetti delle carte, costruiti dal browser al momento (nessun file audio da
 scaricare), disattivabili dal menu. Il computer si prende un tempo diverso a ogni turno, mai
-istantaneo. Il regolamento ufficiale, diviso per articoli e con le fonti, è nel menu ☰.
+istantaneo. Il regolamento ufficiale, diviso per articoli e con le fonti, è nel menu ☰. Dal menu
+☰ si può anche **abbandonare la partita** in corso in ogni momento: si torna alla schermata
+iniziale e non viene più riproposta da "Riprendi la partita".
 
 ### Online in due
 
 Dalla schermata iniziale, *Gioca online* → **Apri un tavolo** dà un codice di quattro lettere;
 l'altro lo scrive e si siede — niente iscrizione, niente ricerca di avversari, si gioca con chi
 si conosce. Se l'app si chiude o cade la linea, si rientra al tavolo dalla schermata iniziale:
-si ricostruisce da capo rileggendo le mosse, nessuno perde la partita.
+si ricostruisce da capo rileggendo le mosse, nessuno perde la partita, e in alto compare per
+qualche secondo un avviso con l'ultima mossa fatta (per esempio "Marco ha pescato dal tallone e
+scartato il 7♦"), così si riparte sapendo subito a che punto era rimasta. Anche online, dal menu
+☰, si può abbandonare la partita in ogni momento.
+
+**La partita finita è finita**: quando una partita arriva al traguardo (2005 o 1005 punti), sia
+offline sia online, la schermata iniziale smette da sola di offrire di riprenderla o di
+rientrarci — non serve fare niente.
 
 ### Conto e statistiche
 
@@ -221,7 +230,7 @@ Da quel momento parte a schermo intero come un'app e funziona anche in aereo.
 
 ```bash
 npm start     # apre http://localhost:8080
-npm test      # 88 test: motore di gioco + le regole dei tre livelli del computer
+npm test      # 95 test: motore di gioco + le regole dei tre livelli del computer
 ```
 
 `npm start` usa un piccolo server incluso nel progetto: serve perché i moduli JavaScript e il
