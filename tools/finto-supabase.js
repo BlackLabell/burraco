@@ -45,8 +45,10 @@ function nomeLibero(base) {
   return n;
 }
 
-const partite = new Map();   // codice -> {codice, modo, target, seme, nomi, ...}
+const partite = new Map();   // codice -> {codice, modo, target, seme, nomi, tempo, ...}
 const mosse = new Map();     // codice -> Map(n -> {n, posto, mossa})
+const chat = new Map();      // codice -> Map(n -> {n, posto, testo})   -- Lavoro 6
+const metrichePro = [];      // riepiloghi di fine partita contro il livello Pro (3 settembre 2026)
 
 const LETTERE = 'ABCDEFGHJKLMNPRSTVWXYZ';
 function codiceNuovo() {
@@ -61,11 +63,16 @@ function codiceNuovo() {
 const su = s => String(s || '').trim().toUpperCase();
 
 const funzioni = {
-  apri_tavolo({ p_modo, p_target, p_nome }) {
+  apri_tavolo({ p_modo, p_target, p_nome, p_tempo }) {
+    // Lavoro 4 — online a tempo: solo chi apre il tavolo sceglie. Valori
+    // ammessi 30/45/60 (secondi a turno); qualunque altra cosa (0, null,
+    // mancante) vuol dire "senza limite di tempo" — come oggi.
+    const tempo = [30, 45, 60].includes(p_tempo) ? p_tempo : null;
     const p = {
       codice: codiceNuovo(),
       modo: p_modo || '1v1',
       target: p_target || 2005,
+      tempo,
       seme: Math.floor(Math.random() * 2147483647),
       nomi: [String(p_nome || '').slice(0, 14), ''],
       creata: new Date().toISOString(),
@@ -73,6 +80,7 @@ const funzioni = {
     };
     partite.set(p.codice, p);
     mosse.set(p.codice, new Map());
+    chat.set(p.codice, new Map());
     return p;
   },
   siediti({ p_codice, p_nome }) {
@@ -98,6 +106,50 @@ const funzioni = {
     const m = mosse.get(su(p_codice));
     if (!m) return [];
     return [...m.values()].filter(x => x.n >= (p_da || 0)).sort((a, b) => a.n - b.n);
+  },
+
+  /* ---- chat (Lavoro 6): stessa forma delle mosse, tabella a parte ----
+     Solo frasi standard e faccine (mai testo libero): l'antispam vero e
+     proprio vive nel client (src/ui.js, tre secondi a testa più un tetto
+     per mano — non ha senso duplicarlo qui senza sapere di che mano si
+     tratta); qui basta la stessa chiave primaria (codice, n) delle mosse
+     a impedire due frasi con lo stesso numero. */
+  manda_chat({ p_codice, p_n, p_posto, p_testo }) {
+    const c = su(p_codice);
+    if (!partite.has(c)) throw new Error('tavolo non trovato');
+    const testo = String(p_testo || '').slice(0, 40);
+    if (!testo) throw new Error('frase vuota');
+    const ch = chat.get(c) || new Map();
+    if (ch.has(p_n)) throw new Error('numero di frase già preso');
+    ch.set(p_n, { n: p_n, posto: p_posto, testo, creata: new Date().toISOString() });
+    chat.set(c, ch);
+    return p_n;
+  },
+  leggi_chat({ p_codice, p_da }) {
+    const ch = chat.get(su(p_codice));
+    if (!ch) return [];
+    return [...ch.values()].filter(x => x.n >= (p_da || 0)).sort((a, b) => a.n - b.n);
+  },
+
+  /* ---- metriche del livello Pro (3 settembre 2026) ----
+     Nessun tavolo coinvolto: solo un riepilogo di fine partita, tenuto in
+     memoria per i collaudi (metrichePro, sotto). */
+  manda_metrica_pro(m) {
+    metrichePro.push({
+      id: metrichePro.length + 1,
+      creata: new Date().toISOString(),
+      nome: String(m.p_nome || '').slice(0, 40),
+      seme: String(m.p_seme || '').slice(0, 40),
+      mani: m.p_mani || 0,
+      punti_umano: m.p_punti_umano || 0,
+      punti_computer: m.p_punti_computer || 0,
+      vincitore: ['umano', 'computer'].includes(m.p_vincitore) ? m.p_vincitore : 'computer',
+      turni_totali: m.p_turni_totali || 0,
+      prese_monte_computer: m.p_prese_monte_computer || 0,
+      prese_tallone_computer: m.p_prese_tallone_computer || 0,
+      versione: String(m.p_versione || '').slice(0, 20),
+    });
+    return null;
   },
 
   /* ---- conto e statistiche (vogliono il gettone) ---- */

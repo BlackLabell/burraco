@@ -704,7 +704,6 @@ function mostraHome() {
         <button class="btn ghost mini" data-h="conto">${Conto.dentro
           ? `👤 ${esc(Conto.nome || 'Giocatore')}`
           : '👤 Accedi'}</button>
-        <button class="btn ghost mini" data-h="problema" title="Segnala un problema">🐞 Segnala</button>
       </div>
       <div class="home-testa">
         <h1>Tavolo da Burraco</h1>
@@ -775,7 +774,7 @@ function applicaNome() {
   if (G && G.names) G.names[HUMAN] = n || 'Tu';
 }
 
-/** Livello del computer scelto l'ultima volta (Facile/Medio/Pro/Pro 2), per non
+/** Livello del computer scelto l'ultima volta (Facile/Medio/Difficile/Pro), per non
     dover riscegliere ogni partita. Un posto solo — 'est' — basta per l'1v1. */
 function livelliSalvati() {
   const base = { est: 2, nord: 2, ovest: 2 };
@@ -1029,7 +1028,6 @@ function bindOnce() {
     else if (b.dataset.h === 'online') onlineDialog();
     else if (b.dataset.h === 'stat') statDialog();
     else if (b.dataset.h === 'conto') contoDialog();
-    else if (b.dataset.h === 'problema') segnalaProblema();
     else if (b.dataset.h === 'rientra') rientraOnline();
     else if (b.dataset.h === 'regole') rulesDialog();
     else if (b.dataset.h === 'tema') cambiaTema();
@@ -1587,11 +1585,14 @@ function finishHand() {
   </table>`;
 
   if (G.finished) {
+    inviaMetricaPro();
     const won = G.winner === MIA();
     modal(won ? 'Partita vinta' : 'Partita persa',
       `${G.matchScore[MIA()]} a ${G.matchScore[LORO()]} — traguardo ${G.target} punti.`,
-      body, `<button class="btn primary" id="m-new">Nuova partita</button>`);
+      body, `<button class="btn ghost" id="m-close">Chiudi</button>
+             <button class="btn primary" id="m-new">Nuova partita</button>`);
     $('m-new').onclick = () => { closeModal(); newGameDialog(); };
+    $('m-close').onclick = () => { closeModal(); mostraHome(); };
   } else {
     const closer = G.result.closer;
     const sub = closer === null
@@ -1890,7 +1891,7 @@ function onlineDialog() {
                 autocomplete="off" spellcheck="false" inputmode="latin"
                 style="text-transform:uppercase; letter-spacing:.4em; font-size:24px; text-align:center">
        </div>
-       <button class="btn" id="o-entra" style="text-align:left">Entra al tavolo</button>
+       <button class="btn grande" id="o-entra"><b>Entra al tavolo</b></button>
        <p class="home-nota" id="o-avviso" style="margin-top:10px">Serve la connessione solo per giocare
          online: contro il computer l'app funziona anche senza rete.</p>
      </div>`,
@@ -1970,7 +1971,7 @@ async function rientraOnline() {
   }
 }
 
-const NOMI_LIVELLO = { 1: 'Facile', 2: 'Medio', 3: 'Pro', 4: 'Pro 2' };
+const NOMI_LIVELLO = { 1: 'Facile', 2: 'Medio', 3: 'Difficile', 4: 'Pro' };
 function opzioniLivello(id, etichetta, valore) {
   return `<label class="opt-livello"><span>${etichetta}</span>
     <select id="${id}">${[1, 2, 3, 4].map(n =>
@@ -2143,7 +2144,6 @@ function menuDialog() {
        <button class="btn" id="m-effetti" style="text-align:left">Suoni delle carte: <b>${Suoni.effetti ? 'accesi' : 'spenti'}</b></button>
        <button class="btn" id="m-tema" style="text-align:left">Cambia tema chiaro / scuro</button>
        <button class="btn" id="m-reg" style="text-align:left">Regolamento ufficiale</button>
-       <button class="btn" id="m-problema" style="text-align:left">Segnala un problema</button>
        <button class="btn" id="m-nuova" style="text-align:left">Nuova partita</button>
        <button class="btn primary" id="m-home" style="text-align:left">Torna alla schermata iniziale</button>
        ${online
@@ -2157,7 +2157,6 @@ function menuDialog() {
   $('m-effetti').onclick = () => { Suoni.cambiaEffetti(); closeModal(); menuDialog(); };
   $('m-tema').onclick = () => { cambiaTema(); closeModal(); };
   $('m-reg').onclick = () => { closeModal(); rulesDialog(); };
-  $('m-problema').onclick = () => { closeModal(); segnalaProblema(); };
   $('m-nuova').onclick = () => { closeModal(); newGameDialog(); };
   $('m-home').onclick = () => { closeModal(); save(); mostraHome(); };
   if ($('m-esci')) $('m-esci').onclick = () => { closeModal(); chiudiOnline(); mostraHome(); };
@@ -2211,10 +2210,12 @@ function rulesDialog() {
   $('m-ok').onclick = closeModal;
 }
 
-/* ---------- Segnala un problema ----------
-   Niente server in questa fase: si apre l'email già scritta, con versione,
-   dispositivo e le ultime mosse, così chi legge non deve chiedere altro.
-   La versione si legge da sw.js — un solo posto dove sta scritta. */
+/* ---------- Versione dell'app ----------
+   Si legge da sw.js — un solo posto dove sta scritta. Usata dalle metriche
+   (vedi "Metriche: partite contro il Pro" più sotto). Il tasto "Segnala un
+   problema" che usava questa stessa funzione per aprire un'email è stato
+   tolto il 3 settembre 2026 su richiesta di Fabio: non gli piaceva che
+   aprisse il client di posta. */
 async function versioneApp() {
   try {
     const r = await fetch('./sw.js', { cache: 'no-store' });
@@ -2224,27 +2225,45 @@ async function versioneApp() {
   } catch (e) { return 'sconosciuta'; }
 }
 
-async function segnalaProblema() {
-  const versione = await versioneApp();
-  const dispositivo = `${navigator.userAgent} — finestra ${window.innerWidth}×${window.innerHeight}`;
-  const mosse = (G && Array.isArray(G.log) && G.log.length)
-    ? G.log.slice(-15).map(e => (logLine(e).h || '').replace(/<[^>]+>/g, '')).filter(Boolean).join('\n')
-    : '(nessuna partita in corso)';
-  const corpo = [
-    'Cosa è successo (scrivi qui):',
-    '',
-    '',
-    '——————————',
-    `Versione: ${versione}`,
-    `Dispositivo: ${dispositivo}`,
-    '',
-    'Ultime mosse:',
-    mosse,
-  ].join('\n');
-  const link = 'mailto:maccarifabio1997@gmail.com'
-    + `?subject=${encodeURIComponent('Burraco — segnalazione (' + versione + ')')}`
-    + `&body=${encodeURIComponent(corpo)}`;
-  window.location.href = link;
+/* ---------- Metriche: partite contro il Pro ----------
+   Richiesta di Fabio (3 settembre 2026): capire come gioca il livello più
+   forte del computer contro un umano vero, per poterlo rendere più forte —
+   vedi la correzione già fatta alla soglia di presa dal monte scarti in
+   claude/offline-livelli-ia.md. Solo per questo: partite 1v1 OFFLINE contro
+   il livello 4 ("Pro"), mai online, mai contro gli altri tre livelli, mai
+   in 2v2 (per ora — l'avversario non è uno solo, non avrebbe senso lo
+   stesso riepilogo). G.log non si azzera a ogni mano (a differenza di
+   g.mosse): a fine partita contiene già ogni pescata di tutta la partita,
+   quindi basta scorrerlo, nessuna nuova annotazione serviva nel motore.
+   Fallisce in silenzio se manca la rete: una metrica persa non deve mai
+   disturbare la partita. */
+function inviaMetricaPro() {
+  try {
+    if (online || G.mode !== '1v1' || !G.finished || G.chiusuraUfficio) return;
+    const avversario = 1 - HUMAN;   // 1v1 offline: due soli posti, HUMAN sempre 0
+    if (!G.livelli || G.livelli[avversario] !== 4) return;   // solo contro il Pro
+    const log = Array.isArray(G.log) ? G.log : [];
+    let preseMonte = 0, preseTallone = 0, turni = 0;
+    for (const e of log) {
+      if (e.t !== 'draw') continue;
+      turni++;
+      if (e.p === avversario) { if (e.src === 'pile') preseMonte++; else preseTallone++; }
+    }
+    const dati = {
+      nome: (G.names && G.names[HUMAN]) || 'Anonimo',
+      seme: String(G.seed),
+      mani: G.handNo,
+      punti_umano: G.matchScore[MIA()],
+      punti_computer: G.matchScore[LORO()],
+      vincitore: G.winner === MIA() ? 'umano' : 'computer',
+      turni_totali: turni,
+      prese_monte_computer: preseMonte,
+      prese_tallone_computer: preseTallone,
+    };
+    versioneApp().then(versione => {
+      Rete.mandaMetricaPro({ ...dati, versione }).catch(() => { });
+    });
+  } catch (e) { /* mai bloccare la fine partita per una metrica */ }
 }
 
 /* ---------- Avvio ---------- */

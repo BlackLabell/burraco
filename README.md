@@ -7,7 +7,7 @@ con quattro livelli di difficoltà) oppure **online in due**, con un codice di q
 dettare all'altro. Gira nel browser, si installa sul telefono e contro il computer funziona
 anche senza connessione.
 
-**Versione pubblicata:** `burraco-v36` — 3 settembre 2026
+**Versione pubblicata:** `burraco-v37` — 3 settembre 2026
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server proprio, nessun
 account a pagamento, nessun dominio da comprare.
 
@@ -108,12 +108,24 @@ da un telefono all'altro. Senza conto si gioca lo stesso, e le statistiche si co
 in locale — partite giocate/vinte/perse, mani chiuse, burrachi per tipo, punti totali e medi,
 mano migliore, serie di vittorie — anche offline, anche contro il computer.
 
+### Metriche: partite contro il Pro
+
+A fine partita **1 contro 1, offline, contro il livello Pro** (il più forte del computer) l'app
+manda da sola, in silenzio, un piccolo riepilogo: punteggio finale, chi ha vinto, quante volte il
+Pro ha preso dal monte scarti invece che dal tallone. Non succede per nessun'altra combinazione
+(non online, non contro gli altri tre livelli, non in 2v2 per ora), e non blocca né rallenta mai
+la partita — se manca la rete, il riepilogo si perde senza che nessuno se ne accorga. Serve solo
+a capire come gioca il Pro contro un umano vero, per ritoccarlo — è così che è stata trovata e
+corretta la sua eccessiva aggressività nel prendere dal monte scarti (vedi
+`claude/offline-livelli-ia.md`). Niente dashboard nell'app: i dati si guardano dal pannello
+Supabase, con una query SQL (vedi la guida consegnata insieme allo script).
+
 ### Il resto
 
-Login in alto a sinistra, tema chiaro e scuro (con buon contrasto in entrambi), tasto **«segnala
-un problema»** che apre una mail con versione, dispositivo e ultime mosse già scritte dentro,
-installabile sul telefono come un'app vera (icona propria, schermo intero, funziona in aereo
-contro il computer).
+Login in alto a sinistra, tema chiaro e scuro (con buon contrasto in entrambi), installabile sul
+telefono come un'app vera (icona propria, schermo intero, funziona in aereo contro il computer).
+Il tasto «segnala un problema» (apriva un'email) è stato tolto il 3 settembre 2026 su richiesta
+di Fabio — non gli piaceva che aprisse il client di posta.
 
 ## Cosa c'è sotto
 

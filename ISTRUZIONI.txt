@@ -1,63 +1,87 @@
-Livello Pro: meno aggressivo nel prendere dal monte scarti
-====================================================================
+METRICHE CONTRO IL PRO + RIMOZIONE "SEGNALA UN PROBLEMA" (burraco-v37)
+========================================================================
 
-Nessuna modifica al database: solo codice, si pubblica come sempre
-(trascinando i file su GitHub o con git push). Aggiorna solo i tre file
-di questo zip — gli altri (src/ui.js, styles.css, ecc.) restano quelli
-dell'ultima consegna (Chiudi/Entra al tavolo/rinomina livelli).
+Cosa cambia in questo giro
+---------------------------
+1) Tolto il tasto "Segnala un problema" (era in home e nel menu di gioco):
+   apriva il client di posta con un mailto:, cosa che non ti piaceva. Non
+   c'è nessun sostituto per ora — se in futuro vuoi comunque un modo per
+   segnalare problemi, fammelo sapere e vediamo un'alternativa che non
+   apra la posta.
 
-Cosa cambia
-==============
+2) Nuove metriche misurate, ma solo per un caso preciso: ogni volta che tu
+   (o chi gioca con l'app) finite una partita 1 CONTRO 1, OFFLINE, CONTRO
+   IL LIVELLO PRO (il più forte, quello ritoccato il 3 settembre), l'app
+   manda da sola un piccolo riepilogo — punteggio finale, chi ha vinto,
+   quante mani, e quante volte il Pro ha preso dal monte scarti invece
+   che dal tallone (proprio il comportamento che ti aveva fatto vincere
+   2035 a 155). Serve per capire coi numeri, partita dopo partita, se la
+   correzione del 3 settembre al livello Pro sta davvero funzionando
+   contro un umano — invece di aspettare solo che tu mi racconti a voce
+   come è andata.
 
-Hai battuto il computer di livello Pro 2035 a 155 e hai notato che
-prendeva quasi sempre dal monte scarti, anche quando non gli serviva a
-niente. Avevi ragione: nel codice, la soglia che decide se vale la pena
-prendere il monte era troppo bassa (15 punti, contro i 25 del livello
-Difficile) — bastavano quattro carte qualsiasi di poco valore per farlo
-abboccare.
+   Non succede per nessun'altra combinazione: non online, non contro gli
+   altri tre livelli (Facile/Medio/Difficile), non in 2v2. Non c'è
+   nessuna schermata nell'app per guardare questi dati — con poche
+   partite alla volta non serve, li guardi direttamente dal pannello
+   Supabase con una query (ce n'è una pronta in sql/GUIDA.md). L'invio
+   non blocca né rallenta mai la fine di una partita: se manca la rete,
+   l'invio si perde in silenzio, non vedi niente di strano.
 
-Corretto in modo prudente, come avevi scelto:
-- la soglia è salita da 15 a 24 (resta un filo più permissiva di quella
-  del Difficile, ma non più a costo quasi zero)
-- il margine di un secondo controllo, che poteva far scattare comunque la
-  presa anche con soglie più severe, è salito da 4 a 8 (deve essere
-  chiaramente conveniente, non solo leggermente)
+PASSO 1 — Esegui lo script SQL PRIMA di pubblicare il codice
+--------------------------------------------------------------
+Come sempre: pannello Supabase del progetto burraco → SQL Editor →
+New query → incolla tutto il contenuto di sql/01-metriche-pro.sql → Run.
 
-Effetto sui test automatici (computer contro computer): il vantaggio del
-Pro sul Difficile è sceso da 74,6% a 59,7% su 300 partite. Non è un
-errore: è il compromesso che hai accettato consapevolmente. L'obiettivo
-di questa modifica non era restare fortissimo contro gli altri livelli
-del computer, ma reggere meglio contro un umano — le due cose tirano in
-direzioni un po' opposte con questo tipo di soglie.
+Dettagli, cosa fa esattamente lo script, e come guardare i dati raccolti:
+tutto spiegato passo-passo in sql/GUIDA.md.
 
-**Questa correzione è ancora da confermare.** I numeri sui bot dicono che
-prende meno a caso, ma se batte anche te resta da vedere solo giocandoci
-davvero. Gioca qualche partita contro il Pro e dimmi come va:
-- se è ancora troppo debole, si può stringere di più (soglia più alta) o
-  aggiungere un freno esplicito per quando si appesantisce la mano senza
-  un uso chiaro delle carte prese
-- se ti sembra invece troppo passivo o diverso da come giocava prima in
-  modo che non ti piace, si può riportare la soglia più vicina a 15
+Importante: crea solo una tabella NUOVA (metriche_pro), indipendente da
+tutto il resto — non tocca partite, mosse, chat, profili, statistiche.
+Se non lo esegui prima, il codice pubblicato prova comunque a mandare la
+metrica a fine partita, ma fallisce in silenzio (nessun errore visibile,
+solo nessun dato raccolto) finché non esegui lo script.
 
-File in questo zip
-======================
+PASSO 2 — Pubblica il codice
+------------------------------
+I file di questa consegna:
+  src/ui.js               tolto "segnala un problema", aggiunta la
+                           funzione che manda la metrica a fine partita
+  src/rete.js              aggiunta la chiamata verso Supabase
+  sw.js                    versione alzata a burraco-v37
+  README.md                aggiornato (versione, novità, nuova sezione
+                           "Metriche: partite contro il Pro")
+  tools/finto-supabase.js  (solo per i miei collaudi in locale, non ti
+                           serve per pubblicare — incluso per completezza)
 
-- src/engine.js   (SOGLIE_LIVELLO[4].sogliaValore 15->24, margine in
-                    pescaPro2 4->8, un commento che spiega perché)
-- sw.js           (VERSIONE alzata a burraco-v36)
-- README.md       (spiegato nel testo, versione aggiornata)
+Sostituisci questi file nel repository (stesso posto di sempre) e
+pubblica come fai di solito. Gli altri file dell'app (src/engine.js,
+src/conto.js, ecc.) non sono cambiati in questo giro.
 
-Come si verifica
-===================
+Come vedere i dati raccolti
+------------------------------
+Pannello Supabase → SQL Editor → New query, e una query come:
 
-npm test    -> 109 test, tutti verdi (nessun test controlla il numero
-               esatto delle soglie, quindi non c'era niente da aggiornare
-               lì — solo il comportamento generale, verificato)
+  select creata, nome, punti_umano, punti_computer, vincitore,
+         turni_totali, prese_monte_computer, prese_tallone_computer
+  from public.metriche_pro
+  order by creata desc
+  limit 50;
 
-Non un test automatico ma un dato utile: ho anche rifatto la simulazione
-computer-contro-computer mirata (Difficile contro Pro, 300 partite): il
-Pro vince 59,7% invece del 74,6% di prima — coerente con l'obiettivo di
-questa modifica.
+Altre query utili (per esempio la percentuale di vittorie del Pro e
+quanto prende in media dal monte) sono in sql/GUIDA.md.
 
-A occhio: gioca contro il Pro qualche volta e guarda se prende ancora il
-monte per carte che non gli servono, o se ora ti sembra più selettivo.
+Verifica fatta
+-----------------
+npm test: 109/109, invariato — nessun cambio a src/engine.js in questo
+giro, le metriche si costruiscono leggendo quello che il motore registra
+già da solo (g.log) per tutta la partita.
+Verificato anche a mano: la logica di conteggio (prese dal monte contro
+prese dal tallone) su un log costruito ad hoc, e la chiamata vera
+Rete.mandaMetricaPro() contro una copia locale di Supabase estesa apposta
+— non solo il motore, anche il pezzo che parla con la rete.
+
+Se qualcosa non torna
+------------------------
+Come sempre, fammi sapere cosa vedi (o non vedi) e guardiamo insieme cosa
+è successo — stavolta però senza dover aprire la posta per dirmelo.

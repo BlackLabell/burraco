@@ -174,6 +174,32 @@ export const Rete = {
     this.attiva = false; this.codice = null; this.posto = 0; this.passo = 0; this.chatPasso = 0;
     this.nomi = ['', '']; this.partita = null;
   },
+
+  /**
+   * Metriche del livello Pro (3 settembre 2026): a fine partita 1v1 offline
+   * contro il livello più alto del computer, manda un riepilogo — punteggio,
+   * chi ha vinto, quante volte il Pro ha preso dal monte scarti invece che
+   * dal tallone. Serve solo a capire come gioca contro un umano vero, per
+   * ritoccare le soglie in `src/engine.js` (vedi claude/offline-livelli-ia.md
+   * nel progetto). Nessun tavolo coinvolto: non tocca `this.attiva` né gli
+   * altri campi di stato, funziona anche offline (rete permettendo) — e chi
+   * la chiama (src/ui.js) ignora già l'errore se la rete manca, non deve
+   * mai disturbare la partita.
+   */
+  async mandaMetricaPro(dati) {
+    return chiama('manda_metrica_pro', {
+      p_nome: dati.nome || '',
+      p_seme: dati.seme || '',
+      p_mani: dati.mani || 0,
+      p_punti_umano: dati.punti_umano || 0,
+      p_punti_computer: dati.punti_computer || 0,
+      p_vincitore: dati.vincitore || 'computer',
+      p_turni_totali: dati.turni_totali || 0,
+      p_prese_monte_computer: dati.prese_monte_computer || 0,
+      p_prese_tallone_computer: dati.prese_tallone_computer || 0,
+      p_versione: dati.versione || '',
+    });
+  },
 };
 
 export default Rete;

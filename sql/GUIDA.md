@@ -1,68 +1,54 @@
-# Lavoro 4 e 6 — cosa eseguire sul tuo Supabase, passo per passo
+# Metriche contro il Pro — cosa eseguire sul tuo Supabase
 
-Nessuna riga di comando: solo il pannello di Supabase, come per l'arbitro
-sul server. Due file SQL, indipendenti l'uno dall'altro — si possono
-eseguire in un ordine qualsiasi, ma ti conviene farli nell'ordine dato
-(prima il tempo, poi la chat).
+Un solo script, stesso metodo di sempre: pannello Supabase, SQL Editor, incolla, Run.
 
-Ho controllato **direttamente sul tuo progetto vero** (burraco,
-`cpwodjykbfmyykybbtzm`) come sono scritte oggi le funzioni che tocco,
-prima di scrivere questi script — non sono a memoria: sono la copia
-esatta di quello che c'è già, più la parte nuova.
-
-## Passo 1 — `01-lavoro4-tempo.sql`
+## Passo 1 — `01-metriche-pro.sql`
 
 1. Apri il pannello Supabase del progetto **burraco**.
-2. Vai su **SQL Editor** (icona a sinistra) → **New query**.
-3. Incolla tutto il contenuto di `01-lavoro4-tempo.sql`.
+2. Vai su **SQL Editor** → **New query**.
+3. Incolla tutto il contenuto di `01-metriche-pro.sql`.
 4. **Run**.
 
-Cosa fa: aggiunge una colonna `tempo` alla tabella `partite` (vuota per le
-partite già aperte: continuano a giocare senza limite di tempo, come
-oggi), e sostituisce `apri_tavolo` con una versione che accetta anche
-`p_tempo` (30, 45 o 60 secondi — qualunque altro valore lo tratta come
-"nessun limite"). Il resto della funzione è identico a quello che c'è già.
+Cosa fa: crea una tabella nuova `metriche_pro` (indipendente da tutto il resto — non tocca
+`partite`, `mosse`, `chat`, `profili`, `statistiche`) e una funzione, `manda_metrica_pro`, che
+l'app chiama da sola a fine partita. Nessuna delle tabelle o funzioni esistenti viene toccata.
 
-Non tocca `siediti`, `guarda_tavolo`, `manda_mossa`, `leggi_mosse`: quelle
-restano esattamente come sono, perché la partita entra già col campo
-`tempo` dentro la riga che restituiscono (fa parte della `partite` intera
-che rimandano indietro).
+## Dopo aver eseguito lo script
 
-## Passo 2 — `02-lavoro6-chat.sql`
+Nessun riavvio da fare: appena pubblichi il codice di questo zip (`src/rete.js`, `src/ui.js`),
+ogni volta che tu (o chi gioca con l'app) finisce una partita **1 contro 1, offline, contro il
+livello Pro** (il più forte), l'app manda da sola un piccolo riepilogo — punteggio, chi ha
+vinto, quante volte il Pro ha preso dal monte scarti invece che dal tallone. Non succede per
+nessun'altra combinazione (non online, non contro gli altri tre livelli, non in 2v2 per ora) e
+non blocca né rallenta mai la partita: se manca la rete, la metrica si perde in silenzio, non
+succede niente di visibile.
 
-1. Stessa strada: **SQL Editor** → **New query**.
-2. Incolla tutto il contenuto di `02-lavoro6-chat.sql`.
-3. **Run**.
+## Come guardare i dati raccolti
 
-Cosa fa: crea una tabella nuova `chat` (uguale nella forma a `mosse`: un
-codice tavolo, un numero progressivo, chi parla, cosa dice) e due funzioni
-per scriverci e leggerla, `manda_chat` e `leggi_chat` — stesso schema di
-`manda_mossa`/`leggi_mosse` che hai già. RLS accesa e nessuna policy,
-come tutte le altre tabelle del gioco: non si legge né si scrive niente
-con la chiave pubblica, solo attraverso queste due funzioni.
+Non c'è una schermata nell'app apposta (con poche partite alla volta non serve): apri **SQL
+Editor** → **New query** sul pannello Supabase e incolla una query come questa:
 
-Non serve toccare il lavoro notturno che chiude i tavoli fermi da due
-giorni (`pulisci_tavoli`, ogni notte alle 4:17): quando cancella un
-tavolo vecchio, le frasi di chat di quel tavolo spariscono da sole insieme
-alle mosse (stessa regola "on delete cascade" che ha già `mosse`).
+```sql
+select creata, nome, punti_umano, punti_computer, vincitore,
+       turni_totali, prese_monte_computer, prese_tallone_computer, versione
+from public.metriche_pro
+order by creata desc
+limit 50;
+```
 
-## Dopo aver eseguito i due script
+Un colpo d'occhio utile — quante volte su dieci il Pro vince, e quanto prende dal monte in
+media:
 
-Nessun riavvio da fare, nessuna cache da svuotare: le funzioni SQL sono
-attive nell'istante in cui premi Run. Il client (l'app) userà la colonna
-`tempo` e le due funzioni nuove solo quando pubblichi la versione
-`burraco-v34` — finché non lo fai, il sito online resta quello di oggi e
-gli script eseguiti qui non cambiano niente per chi sta già giocando.
+```sql
+select
+  count(*) as partite,
+  round(100.0 * count(*) filter (where vincitore = 'computer') / count(*), 1) as pro_vince_pct,
+  round(avg(prese_monte_computer), 1) as prese_monte_medie,
+  round(avg(prese_monte_computer::float / nullif(prese_monte_computer + prese_tallone_computer, 0)) * 100, 1) as pct_prese_dal_monte
+from public.metriche_pro;
+```
 
-## Se qualcosa va storto
+## Se vuoi tornare indietro
 
-- **"function apri_tavolo(text, integer, text) does not exist"** dopo aver
-  eseguito il passo 1: è normale finché non pubblichi anche `burraco-v34`
-  — il sito attuale chiama ancora la versione a tre argomenti. Lo script
-  ne crea una a quattro con l'ultimo opzionale, quindi in teoria continua
-  a funzionare anche coi tre soli; se per qualche motivo desse comunque
-  errore, fammelo sapere prima di pubblicare la nuova versione del sito.
-- **Vuoi tornare indietro** (togliere il tempo o la chat): il passo 1 si
-  annulla con `alter table public.partite drop column tempo;` (le partite
-  in corso perdono solo il limite di tempo, nessun altro dato); il passo 2
-  con `drop table public.chat;`. Non serve normalmente, ma è lì se serve.
+`drop table public.metriche_pro;` cancella tutto (tabella e dati). Non serve normalmente, ma è
+lì se serve.
