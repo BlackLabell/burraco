@@ -21,6 +21,24 @@ let pozzettoAnim = null;  // {p, n}: le carte del pozzetto che stanno arrivando 
 let scartiNascosti = false;   // durante la distribuzione, finché non si gira la prima carta
 let rientroInfo = '';     // banner in alto con l'ultima mossa fatta, quando si rientra
 let rientroTimer = null;  // il timer che lo fa sparire da solo
+/* Online a tempo (Lavoro 4). Il motore non conosce l'ora: qui si tiene solo
+   il momento (orologio del telefono) in cui è cominciato il turno in corso,
+   per disegnare il conto alla rovescia e per accorgersi, in ciclaRete, che
+   è scaduto. turnoIniziatoAlle si aggiorna a ogni cambio di turno vero
+   (annunciaTurno, e quando arriva la pescata dell'altro) — vedi
+   segnaInizioTurno(). cronometroTick ridisegna solo il numero, senza mai
+   richiamare render(): un render() intero ogni secondo romperebbe le
+   animazioni delle carte in volo. */
+let turnoIniziatoAlle = 0;
+let cronometroTick = null;
+let inviandoUfficio = false;   // impedisce due turni d'ufficio sovrapposti
+/* Chat di gioco (Lavoro 6): solo frasi standard e faccine, mai testo
+   libero — vedi FRASI_CHAT più sotto. chatMuto è per-partita, non si
+   salva: si azzera a ogni nuova partita online. */
+let chatMuto = false;
+let ultimoChatInviato = 0;
+let chatInviatiMano = 0;
+let fumetti = {};              // p -> {testo, via: setTimeout}
 /* Il proprio posto al tavolo. Contro il computer è sempre il posto 0;
    online, chi entra in un tavolo già aperto siede al posto 1. Tutto il
    disegno parte da qui: "i vostri giochi" sono quelli della squadra di
@@ -328,8 +346,35 @@ function toglieAnnuncio() {
 /** Il turno è passato: si annuncia a chi tocca. */
 function annunciaTurno() {
   if (G.handOver || dealCount !== null) return;
+  segnaInizioTurno();
   if (G.turn === HUMAN) { Suoni.suona('tocca'); annuncio('Tocca a te', true); }
   else annuncio('Tocca a ' + G.names[G.turn], false);
+}
+
+/* ---------- Online a tempo (Lavoro 4) ---------- */
+
+/** Segna che il turno in corso comincia adesso — vedi la nota su
+    turnoIniziatoAlle più sopra. Chiamata a ogni cambio di turno vero. */
+function segnaInizioTurno() {
+  turnoIniziatoAlle = Date.now();
+}
+
+/** Il piccolo conto alla rovescia nello stato del turno: si aggiorna da
+    solo ogni secondo scrivendo direttamente nel nodo, senza mai passare
+    da render() (che rifarebbe tutto il tavolo e romperebbe un volo di
+    carte in corso). Parte con la partita online, si ferma quando si esce. */
+function avviaCronometro() {
+  fermaCronometro();
+  cronometroTick = setInterval(() => {
+    const el = $('countdown');
+    if (!el || !online || !G || !G.tempo || G.handOver || dealCount !== null) { if (el) el.textContent = ''; return; }
+    const restano = G.tempo - Math.floor((Date.now() - turnoIniziatoAlle) / 1000);
+    el.textContent = '⏱ ' + Math.max(0, restano) + 's';
+    el.classList.toggle('poco', restano <= 10);
+  }, 1000);
+}
+function fermaCronometro() {
+  if (cronometroTick) { clearInterval(cronometroTick); cronometroTick = null; }
 }
 
 /* ---------- Render ---------- */
@@ -351,7 +396,9 @@ function seatHTML(p) {
   // umano online (lì G.livelli resta vuoto: nessun posto è del computer)
   const liv = !online && G.livelli && G.livelli[p];
   const badgeLivello = liv ? `<span class="badge-livello">${NOMI_LIVELLO[liv]}</span>` : '';
+  const fumetto = fumetti[p] ? `<div class="fumetto">${esc(fumetti[p].testo)}</div>` : '';
   return `<div class="seat ${gioca ? 'now' : ''}" data-p="${p}">
+    ${fumetto}
     <div class="fan ${n ? '' : 'empty'}">${fan}</div>
     <div class="who"><b>${G.names[p]}</b>${badgeLivello}<span class="sep"> · </span>${n}<span class="unita"> ${n === 1 ? 'carta' : 'carte'}</span>${gioca ? '<span class="gioca"> · gioca</span>' : ''}</div>
   </div>`;
@@ -486,7 +533,7 @@ function render() {
 
   const stato = `
     <div class="state">
-      <div class="now">${G.handOver ? 'Mano finita' : G.turn === HUMAN ? 'Tocca a te' : 'Turno di ' + G.names[G.turn]}</div>
+      <div class="now">${G.handOver ? 'Mano finita' : G.turn === HUMAN ? 'Tocca a te' : 'Turno di ' + G.names[G.turn]}${online && G.tempo && !G.handOver && dealCount === null ? `<span class="countdown" id="countdown"></span>` : ''}</div>
       ${hint ? `<div class="hint ${msgErr ? 'err' : ''}">${hint}</div>` : ''}
     </div>`;
 
@@ -535,8 +582,11 @@ function render() {
       ${croce ? `<div class="posto-lato">${seatHTML((HUMAN + 1) % 4)}</div>` : ''}
     </div>
     <section class="zone mano">
-      <div class="seat-label mano-h"><b>${nMano} ${nMano === 1 ? 'carta' : 'carte'}</b>
+      <div class="seat-label mano-h" style="position:relative">
+        ${fumetti[HUMAN] ? `<div class="fumetto fumetto-mia">${esc(fumetti[HUMAN].testo)}</div>` : ''}
+        <b>${nMano} ${nMano === 1 ? 'carta' : 'carte'}</b>
         ${sel.size ? `<span class="chip on">${sel.size} scelte</span>` : ''}
+        ${online ? `<button class="btn ghost mini" data-a="chat" title="Chat">💬</button>` : ''}
         <button class="btn ghost mini" data-a="sort" title="Cambia l'ordine della mano">Per ${sortMode === 'rank' ? 'seme' : 'valore'}</button></div>
       <div class="hand ${dealing ? 'deal' : ''}" id="hand">${hand}</div>
     </section>`;
@@ -641,6 +691,11 @@ function mostraHome() {
   const rientro = biglietto();
   const nome = loadNome();
   online = false;
+  // Il conto alla rovescia (Lavoro 4) non ha un modo suo per accorgersi che
+  // si è tornati alla schermata iniziale: senza questo si accumulerebbe un
+  // intervallo che gira per sempre in background. Chiamarlo qui è innocuo
+  // anche quando non c'era nessun cronometro acceso (controlla da solo).
+  fermaCronometro();
   $('layout').hidden = true;
   $('home').hidden = false;
   $('home').innerHTML = `
@@ -771,6 +826,7 @@ function riprendiPartita() {
 
 function chiudiOnline() {
   online = false;
+  fermaCronometro();
   Rete.esci();
   salvaBiglietto();
 }
@@ -779,19 +835,27 @@ function chiudiOnline() {
 async function avviaOnline(partita, posto, mosse) {
   online = true;
   HUMAN = posto;
-  G = E.newGame(partita.modo || '1v1', { target: partita.target || 2005, seed: Number(partita.seme) });
+  chatMuto = false; ultimoChatInviato = 0; chatInviatiMano = 0; fumetti = {};
+  // Lavoro 4: il tempo per turno lo sceglie solo chi ha aperto il tavolo,
+  // e viaggia dentro la riga della partita — sia chi apre sia chi entra lo
+  // leggono da qui, mai da un menu proprio.
+  G = E.newGame(partita.modo || '1v1', { target: partita.target || 2005, seed: Number(partita.seme), tempo: partita.tempo || null });
   G.names = [esc(Rete.nomi[0]) || 'Chi ha aperto', esc(Rete.nomi[1]) || 'Chi è entrato'];
   applicaNome();
   sel.clear(); say(''); handOrder = []; busy = false; dealCount = null;
   nascondiHome();
   const arretrate = mosse || [];
   for (const r of arretrate) applicaSenzaVolo(r.mossa);
+  // La chat vecchia non interessa più a chi rientra: si salta solo il
+  // cursore, senza far ricomparire in fumetti frasi di minuti fa.
+  if (arretrate.length) { try { await Rete.saltaChatEsistente(); } catch (e) { } }
   salvaBiglietto();
   // solo un vero rientro (mosse già fatte da recuperare) merita il banner:
   // chi si siede a un tavolo appena aperto non ha niente da riguardare
   if (arretrate.length) mostraRientro(ultimaMossaTesto());
   if (!arretrate.length) { dealing = true; await distribuisci(); } else render();
   annunciaTurno();
+  avviaCronometro();
   ciclaRete();
 }
 
@@ -808,27 +872,80 @@ function portaAllaMano(mano) {
   while (mano && G.handNo < mano && giri++ < 40) {
     if (!G.handOver) break;
     E.nextHand(G); sel.clear(); handOrder = [];
+    chatInviatiMano = 0;   // il tetto per mano (Lavoro 6) riparte da capo
   }
 }
 
-/** Manda la mossa appena fatta all'altro telefono. */
-function spedisci() {
-  if (!online || !Rete.attiva || !G.mosse || !G.mosse.length) return;
-  const ultima = G.mosse[G.mosse.length - 1];
-  Rete.manda(ultima, G.handNo).catch(() => say('Mossa non partita: controlla la rete.', true));
+/** Manda una mossa specifica all'altro telefono (numero di mano compreso,
+    serve a chi la riceve per mettersi in pari se è rimasto indietro). */
+function spedisciMossa(m) {
+  if (!online || !Rete.attiva) return;
+  Rete.manda(m, G.handNo).catch(() => say('Mossa non partita: controlla la rete.', true));
 }
 
-/** Il giro di guardia: ogni tanto si va a vedere se l'altro ha mosso. */
+/** Manda l'ultima mossa fatta (quella appena entrata in G.mosse). */
+function spedisci() {
+  if (!G.mosse || !G.mosse.length) return;
+  spedisciMossa(G.mosse[G.mosse.length - 1]);
+}
+
+/**
+ * Turno d'ufficio (Lavoro 4): il tempo del turno altrui è scaduto e la
+ * persona che sta aspettando (mai chi doveva muovere: il suo telefono
+ * potrebbe essere chiuso) esegue al suo posto pesca-dal-tallone-e-scarta,
+ * secondo le stesse regole del livello Medio, e manda le due mosse
+ * risultanti all'altro telefono — così, quando quella persona torna,
+ * ritrova la sua mano coerente con quello che è successo nel frattempo.
+ * Non anima nulla (non è un turno "vero", non c'è bisogno di enfasi): solo
+ * un annuncio breve e via.
+ */
+async function eseguiTurnoUfficio() {
+  if (inviandoUfficio || busy || dealCount !== null || !online || !G || G.handOver) return;
+  inviandoUfficio = true;
+  try {
+    const p = G.turn;
+    const primaLen = G.mosse.length;
+    const r = E.turnoUfficio(G, p);
+    if (!r || !r.ok) return;
+    for (const m of G.mosse.slice(primaLen)) spedisciMossa(m);
+    save();
+    annuncio(`${G.names[p]} non ha mosso in tempo: turno d'ufficio`, false);
+    render();
+    if (G.finished) { finishHand(); return; }
+    if (G.turn === HUMAN) { say(''); annunciaTurno(); }
+    else segnaInizioTurno();
+  } finally {
+    inviandoUfficio = false;
+  }
+}
+
+/** Il giro di guardia: ogni tanto si va a vedere se l'altro ha mosso — e,
+    nello stesso giro (Lavoro 6, "senza aggiungere traffico" vuol dire
+    "senza un secondo timer tutto suo"), se c'è una frase di chat nuova, e
+    se il tempo del turno altrui è scaduto (Lavoro 4). */
 async function ciclaRete() {
   while (online && Rete.attiva) {
     await sleep(RITMO);
     if (!online || !Rete.attiva) return;
     if (busy || dealCount !== null || pozzettoAnim) continue;
     let arrivate = [];
-    try { arrivate = await Rete.nuove(); } catch (e) { continue; }
+    try { arrivate = await Rete.nuove(); } catch (e) { arrivate = []; }
     for (const r of arrivate) {
       if (r.posto === Rete.posto) continue;      // le proprie sono già sul tavolo
       await mossaDellAltro(r.mossa);
+    }
+    if (!online || !Rete.attiva) return;
+    try {
+      const frasi = await Rete.nuoveChat();
+      for (const f of frasi) if (f.posto !== Rete.posto) mostraFumetto(f.posto, f.testo, false);
+    } catch (e) { /* la chat non è essenziale: un giro perso non è un problema */ }
+    if (!online || !Rete.attiva) return;
+    // Solo chi aspetta controlla l'orologio dell'altro: in 1v1 è sempre e
+    // solo l'altro telefono, quindi non serve nessun accordo su chi dei
+    // due debba farlo — non può mai succedere che lo facciano in due.
+    if (!busy && dealCount === null && !G.handOver && G.tempo && G.turn !== HUMAN) {
+      const scaduto = (Date.now() - turnoIniziatoAlle) / 1000 > G.tempo;
+      if (scaduto) await eseguiTurnoUfficio();
     }
   }
 }
@@ -844,6 +961,11 @@ async function mossaDellAltro(payload) {
   busy = true;
   try {
     if (mossa.t === 'p') {
+      // Un pescata segna sempre l'inizio di un turno vero (è la prima
+      // azione possibile): utile al cronometro anche quando non è il mio
+      // turno — per esempio a inizio di una mano nuova che ha aperto
+      // l'altro, dove altrimenti il mio orologio resterebbe fermo a prima.
+      segnaInizioTurno();
       say(`${G.names[p]} pesca…`);
       render(); await sleep(220);
       const daMazzo = rett(elMazzo()), daScarti = rett(elScarti()), alPosto = rett(elPosto(p));
@@ -938,6 +1060,7 @@ function bindOnce() {
     else if (a === 'discard') doDiscard();
     else if (a === 'punti') punteggioDialog();
     else if (a === 'menu') menuDialog();
+    else if (a === 'chat') chatDialog();
     else if (a === 'sort') {
       sortMode = sortMode === 'rank' ? 'suit' : 'rank';
       handOrder = [];               // l'ordinamento automatico ha la precedenza
@@ -1407,7 +1530,11 @@ function segnaRisultati() {
   for (const b of mio.burrachi || []) if (burrachi[b] !== undefined) burrachi[b]++;
   Stat.mano(mio.total, !!mio.chiusura, burrachi);
   Conto.segnaMano(mio.total, !!mio.chiusura, burrachi);
-  if (G.finished) {
+  // Una partita chiusa per tre turni d'ufficio di fila (Lavoro 4) non è né
+  // vinta né persa: non conta nelle statistiche di partita di nessuno dei
+  // due, altrimenti G.winner === null la segnerebbe come una sconfitta per
+  // entrambi, il che non è vero.
+  if (G.finished && !G.chiusuraUfficio) {
     const vinta = G.winner === MIA();
     Stat.partita(vinta, online);
     Conto.segnaPartita(vinta, online);
@@ -1415,7 +1542,26 @@ function segnaRisultati() {
 }
 
 function finishHand() {
+  fermaCronometro();
   segnaRisultati();
+  // Chiusura per tre turni d'ufficio di fila (Lavoro 4): non è una vittoria
+  // né una sconfitta, è la partita che si ferma da sola perché uno dei due
+  // non c'è più stato per tre turni interi. Va detto così, non "hai perso".
+  if (G.chiusuraUfficio) {
+    Suoni.suona('fineMano');
+    Suoni.abbassa(true);
+    save();
+    cancellaRipresa();
+    modal('Partita interrotta',
+      `${G.matchScore[MIA()]} a ${G.matchScore[LORO()]} quando si è fermata.`,
+      `<p class="home-nota">Tre turni sono passati d'ufficio, uno via l'altro, senza che nessuno dei
+       due giocasse davvero: la partita si è chiusa da sola, senza dichiarare un vincitore.
+       Succede quando uno dei due telefoni resta senza far niente più a lungo del tempo scelto
+       per il turno.</p>`,
+      `<button class="btn primary" id="m-new">Nuova partita</button>`);
+    $('m-new').onclick = () => { closeModal(); newGameDialog(); };
+    return;
+  }
   Suoni.suona(G.finished ? (G.winner === MIA() ? 'vittoria' : 'sconfitta') : 'fineMano');
   Suoni.abbassa(true);
   save();                 // così "Riprendi" non ripropone una partita già finita
@@ -1456,9 +1602,11 @@ function finishHand() {
     $('m-next').onclick = async () => {
       closeModal();
       E.nextHand(G); sel.clear(); say(''); dealing = true; handOrder = [];
+      chatInviatiMano = 0;
       save();
       await distribuisci();
       annunciaTurno();
+      if (online) avviaCronometro();
       if (!online && G.turn !== HUMAN) await runAI();
     };
   }
@@ -1647,9 +1795,93 @@ function statDialog() {
   if ($('s-conto')) $('s-conto').onclick = () => { closeModal(); contoDialog(); };
 }
 
+/* ---------- Chat di gioco (Lavoro 6) ----------
+   Solo frasi standard e faccine, decise da Fabio — mai testo libero: niente
+   da moderare, niente tastiera da aprire in mezzo a una partita. */
+const FRASI_CHAT = {
+  Saluti: ['Ciao!', 'Buona partita!', 'Alla prossima!', 'Devo andare, scusa'],
+  Gioco: ['Bel gioco!', 'Bella mossa!', 'Che fortuna!', 'Che sfortuna!', 'Tocca a te',
+    'Un attimo...', 'Forza!', 'Peccato!', 'Prendi il pozzetto', 'Vediamo se ci caschi', 'Bluff'],
+  Cortesia: ['Scusa', 'Grazie', 'Prego', 'Va bene', 'Nessun problema'],
+  Sfottò: ['Ti prego basta', 'Aiuto', 'Che cazzo', 'Uffaaa!!!!', 'Non sei carino', 'Ah!'],
+  Faccine: ['😄', '😅', '😮', '😂', '👏', '🤔', '😢', '🎉'],
+};
+const ANTISPAM_MS = 3000;      // una frase ogni tanto a testa
+const ANTISPAM_TETTO_MANO = 20; // oltre non serve, è solo per non intasare
+
+function possoChattare() {
+  if (Date.now() - ultimoChatInviato < ANTISPAM_MS) return 'Aspetta un attimo prima di un\'altra frase.';
+  if (chatInviatiMano >= ANTISPAM_TETTO_MANO) return 'Tante frasi per una mano sola: aspetta la prossima.';
+  return null;
+}
+
+/** Mostra il fumetto vicino al posto di chi parla, e lo fa sparire da solo.
+    `mio` = true per la propria frase appena inviata: si vede sempre, anche
+    a chat mutata (il muto silenzia solo quello che arriva dall'altro). */
+function mostraFumetto(p, testo, mio) {
+  if (!mio && chatMuto) return;
+  if (fumetti[p] && fumetti[p].via) clearTimeout(fumetti[p].via);
+  const via = setTimeout(() => { delete fumetti[p]; render(); }, 4200);
+  fumetti[p] = { testo, via };
+  if (!mio) Suoni.suona('chat');
+  render();
+}
+
+async function inviaChat(testo) {
+  if (!online || !Rete.attiva) return;
+  const bloccato = possoChattare();
+  if (bloccato) { say(bloccato, true); render(); return; }
+  ultimoChatInviato = Date.now();
+  chatInviatiMano++;
+  mostraFumetto(HUMAN, testo, true);
+  try { await Rete.mandaChat(testo); } catch (e) { /* una frase persa non è grave: si riprova dopo */ }
+}
+
+function chatDialog() {
+  const gruppi = Object.entries(FRASI_CHAT).map(([nome, frasi]) => `
+    <div class="chat-gruppo">
+      <p class="fonte">${nome}</p>
+      <div class="chat-frasi">${frasi.map(f => `<button class="btn ghost chat-frase" data-f="${esc(f)}">${esc(f)}</button>`).join('')}</div>
+    </div>`).join('');
+  modal('Chat', 'Solo frasi pronte: niente tastiera in mezzo alla partita',
+    `<div class="opts">
+       <button class="btn" id="c-muto" style="text-align:left">${chatMuto ? 'Chat: mutata — tocca per riattivarla' : 'Chat: attiva — tocca per mutarla'}</button>
+       ${gruppi}
+     </div>`,
+    `<button class="btn ghost" id="m-ok">Chiudi</button>`);
+  $('m-ok').onclick = closeModal;
+  $('c-muto').onclick = () => { chatMuto = !chatMuto; closeModal(); chatDialog(); };
+  for (const b of document.querySelectorAll('.chat-frase')) {
+    b.onclick = () => { closeModal(); inviaChat(b.dataset.f); };
+  }
+}
+
+/** Il tempo scelto per aprire un tavolo l'ultima volta (Lavoro 4): solo
+    per non dover riscegliere ogni volta, si ricorda com'è fatto un livello
+    del computer. `0` vuol dire "nessun limite". */
+function tempoSalvato() {
+  try { return +localStorage.getItem('burraco.tempo') || 0; } catch (e) { return 0; }
+}
+function salvaTempo(t) { try { localStorage.setItem('burraco.tempo', String(t || 0)); } catch (e) { } }
+
 function onlineDialog() {
+  const tempo = tempoSalvato();
+  const opzioneTempo = (v, etichetta) => `<label class="opt-tempo">
+    <input type="radio" name="o-tempo" value="${v}" ${v === tempo ? 'checked' : ''}><span>${etichetta}</span></label>`;
   modal('Gioca online', 'In due, dallo stesso tavolo o da due città',
     `<div class="opts">
+       <div class="campo-nome">
+         <span>Tempo per turno, se apri tu il tavolo</span>
+         <div class="opts-tempo">
+           ${opzioneTempo(0, 'Nessun limite')}
+           ${opzioneTempo(30, '30 secondi')}
+           ${opzioneTempo(45, '45 secondi')}
+           ${opzioneTempo(60, '60 secondi')}
+         </div>
+         <p class="fonte" style="margin-top:4px">Se il tempo scade, quel turno passa d'ufficio (si pesca
+           dal tallone e si scarta la carta meno utile, senza calare); dopo tre di fila la partita si
+           chiude da sola. Lo sceglie solo chi apre: chi entra col codice lo eredita.</p>
+       </div>
        <button class="btn primary" id="o-apri" style="text-align:left">
          <b>Apri un tavolo</b><br><small style="opacity:.8">Ti do un codice di quattro lettere da dettare all'altro</small></button>
        <div class="campo-nome" style="margin-top:14px">
@@ -1666,9 +1898,11 @@ function onlineDialog() {
   $('m-ok').onclick = closeModal;
   const avviso = (t, err) => { $('o-avviso').textContent = t; $('o-avviso').style.color = err ? 'var(--red)' : ''; };
   $('o-apri').onclick = async () => {
+    const t = +(document.querySelector('input[name=o-tempo]:checked') || {}).value || 0;
+    salvaTempo(t);
     $('o-apri').disabled = true; avviso('Apro il tavolo…');
     try {
-      const p = await Rete.apri(nomeAlTavolo() || 'Chi ha aperto');
+      const p = await Rete.apri(nomeAlTavolo() || 'Chi ha aperto', '1v1', 2005, t || null);
       attesaDialog(p);
     } catch (e) {
       $('o-apri').disabled = false;

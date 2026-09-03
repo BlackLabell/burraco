@@ -7,7 +7,7 @@ con quattro livelli di difficoltà) oppure **online in due**, con un codice di q
 dettare all'altro. Gira nel browser, si installa sul telefono e contro il computer funziona
 anche senza connessione.
 
-**Versione pubblicata:** `burraco-v33` — 2 settembre 2026
+**Versione pubblicata:** `burraco-v34` — 3 settembre 2026
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server proprio, nessun
 account a pagamento, nessun dominio da comprare.
 
@@ -79,6 +79,20 @@ qualche secondo un avviso con l'ultima mossa fatta (per esempio "Marco ha pescat
 scartato il 7♦"), così si riparte sapendo subito a che punto era rimasta. Anche online, dal menu
 ☰, si può abbandonare la partita in ogni momento.
 
+**A tempo, se si vuole.** Chi apre il tavolo può scegliere un limite per turno — 30, 45 o 60
+secondi, oppure nessun limite (come oggi). Il countdown si vede accanto a chi deve muovere; se il
+tempo scade il turno passa **d'ufficio**: si pesca dal tallone (mai dal monte scarti) e si scarta
+in automatico la carta meno utile secondo la stessa logica del computer di livello Medio, senza
+calare nulla. Dopo **tre turni d'ufficio di fila** la partita si chiude da sola, senza vincitore,
+e lo dice a entrambi — capita solo se uno dei due sparisce davvero, per non lasciare l'altro a
+guardare un tavolo fermo all'infinito.
+
+**Due parole in chat.** Un tasto 💬 vicino al proprio posto apre un elenco di frasi fisse e
+faccine già pronte (saluti, commenti di gioco, cortesia, qualche sfottò) — non si scrive testo
+libero. Le frasi appaiono in un fumetto sopra chi le manda, con un piccolo suono, e si può
+disattivarle dal tavolo con un tasto muto se danno fastidio. Solo online: contro il computer non
+c'è nessuno con cui parlare.
+
 **La partita finita è finita**: quando una partita arriva al traguardo (2005 o 1005 punti), sia
 offline sia online, la schermata iniziale smette da sola di offrire di riprenderla o di
 rientrarci — non serve fare niente.
@@ -112,7 +126,7 @@ sw.js                     service worker: fa funzionare l'app senza connessione
 manifest.webmanifest      dati per l'installazione sul telefono
 icons/                    icone dell'app
 tests/engine.test.js      motore e regole di gioco
-tests/livelli.test.js     le regole dei tre livelli del computer, una per una
+tests/livelli.test.js     le regole dei quattro livelli del computer, una per una
 tools/serve.js            server locale per lo sviluppo
 tools/finto-supabase.js   copia locale del servizio online, per i collaudi senza rete
 tools/simula-livelli.js   fa giocare i tre livelli fra loro centinaia di volte e conta chi vince
@@ -138,13 +152,16 @@ gioco: il computer evita — se ha altre carte fra cui scegliere — di riscarta
 appena presa dal monte, per non ripetere il loop di prendi-e-ributta visto in partite vere. Un
 umano non ha questo limite: può ributtarla subito se vuole.
 
-**Online**: cinque funzioni SQL su Supabase (progetto `burraco`, piano gratuito, server in
-Germania) — `apri_tavolo`, `siediti`, `guarda_tavolo`, `manda_mossa`, `leggi_mosse` — parlate
-solo da `fetch`, nessuna libreria. Le tabelle non si toccano mai direttamente: senza il codice
-del tavolo non si ottiene niente. Il motore gira sui due telefoni, non su un server: fra amici
-va benissimo — ogni telefono rifiuta le mosse non regolari — ma chi apre la console del browser
-può vedere le carte dell'altro; un "arbitro" lato server che tolga anche questo è pronto come
-guida e codice (vedi *Funzionalità future*) ma non ancora collegato al client.
+**Online**: sette funzioni SQL su Supabase (progetto `burraco`, piano gratuito, server in
+Germania) — `apri_tavolo` (che ora accetta anche un limite di tempo per turno, facoltativo),
+`siediti`, `guarda_tavolo`, `manda_mossa`, `leggi_mosse`, e le due della chat, `manda_chat` e
+`leggi_chat` — parlate solo da `fetch`, nessuna libreria. Le tabelle non si toccano mai
+direttamente: senza il codice del tavolo non si ottiene niente. La chat vive in una tabella a
+parte (`chat`), letta nello stesso giro di polling delle mosse — non aggiunge traffico proprio.
+Il motore gira sui due telefoni, non su un server: fra amici va benissimo — ogni telefono
+rifiuta le mosse non regolari — ma chi apre la console del browser può vedere le carte
+dell'altro; un "arbitro" lato server che tolga anche questo è pronto come guida e codice (vedi
+*Funzionalità future*) ma non ancora collegato al client.
 
 **Conto**: email e password gestite da Supabase Auth; nel database ci sono solo `profili` (il
 nome al tavolo) e `statistiche`, e si toccano solo attraverso funzioni che guardano da sole chi
@@ -238,7 +255,7 @@ Da quel momento parte a schermo intero come un'app e funziona anche in aereo.
 
 ```bash
 npm start     # apre http://localhost:8080
-npm test      # 103 test: motore di gioco + le regole dei quattro livelli del computer
+npm test      # 109 test: motore di gioco + le regole dei quattro livelli del computer
 ```
 
 `npm start` usa un piccolo server incluso nel progetto: serve perché i moduli JavaScript e il

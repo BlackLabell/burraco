@@ -1,65 +1,112 @@
-LAVORO 1 — QUARTO LIVELLO DEL COMPUTER "PRO 2" (burraco-v33)
+Lavoro 4 e 6: online a tempo + turno d'ufficio, chat di gioco
+====================================================================
+
+ATTENZIONE: questa consegna ha DUE parti. Il codice qui dentro non
+funziona online finché non esegui anche i due script SQL nella
+cartella sql/ — vedi il passo 0 più sotto.
+
+Cosa cambia
+==============
+
+1) Online a tempo (Lavoro 4)
+   Quando apri un tavolo, adesso puoi scegliere quanto tempo dare a
+   ogni turno: nessun limite (come oggi), 30, 45 o 60 secondi. Chi si
+   siede dopo di te vede lo stesso limite, non sceglie lui.
+
+   Se hai scelto un tempo, durante la partita vedi un conto alla
+   rovescia vicino a chi deve muovere. Se il tempo scade, il turno
+   passa "d'ufficio": si pesca dal tallone (mai dal monte scarti) e
+   si scarta in automatico la carta meno utile — la stessa logica del
+   computer di livello Medio — senza calare nulla. Se capita tre
+   volte di fila, la partita si chiude da sola e lo dice a entrambi
+   ("Partita interrotta", non vinta né persa) — serve solo per non
+   restare bloccati se l'altro sparisce davvero, non conta come
+   sconfitta nelle tue statistiche.
+
+   Un limite che ti dico apertamente: il conto alla rovescia si basa
+   sull'orologio del telefono, non su quello del server. Se ti
+   disconnetti e rientri, il conto riparte da capo invece di
+   "ricordare" quanto tempo era già passato — l'ho fatto apposta così:
+   è l'errore più sicuro dei due (dare un turno in più di cortesia a
+   chi rientra, piuttosto che far scattare un turno d'ufficio un
+   istante dopo che è tornato).
+
+2) Chat di gioco (Lavoro 6)
+   Vicino al tuo posto c'è un tasto 💬, solo online (non c'è contro il
+   computer: non hai nessuno con cui parlare). Apre un elenco di frasi
+   già pronte e faccine — non si scrive testo libero, è tutta la lista
+   che avevi approvato, "Che cazzo" compreso, così com'era.
+
+   Le frasi appaiono in un fumetto sopra chi le manda, con un piccolo
+   suono. Se danno fastidio, un tasto vicino le mette in muto per
+   quella partita. C'è anche un limite automatico (una frase ogni 3
+   secondi a testa, e un tetto per mano) così non si può intasare la
+   chat.
+
+Cosa DEVI fare tu, sul pannello Supabase (una volta sola)
 ==============================================================
 
-Cosa c'è in questo zip
------------------------
-I file cambiati per aggiungere il quarto livello del computer, da mettere al posto di
-quelli con lo stesso nome nel repository (stessa posizione):
+Prima di pubblicare questo codice, apri il pannello Supabase del tuo
+progetto "burraco" ed esegui i due script nella cartella sql/, uno
+alla volta, così come spiegato passo per passo in sql/GUIDA.md:
 
-  src/engine.js            - il cuore del lavoro: il nuovo livello "Pro 2" e i suoi test
-  src/ui.js                - il menu dei livelli ora ha 4 voci invece di 3
-  sw.js                    - versione alzata a burraco-v33 (fa scaricare l'aggiornamento
-                              a chi ha già l'app installata)
-  tests/livelli.test.js    - 8 test nuovi per il livello 4 (103 in tutto, 95 di prima + 8)
-  tools/simula-livelli.js  - lo strumento di verifica ora confronta tutti e 4 i livelli
-                              fra loro (prima solo 3), invece che uno alla volta
-  README.md                - aggiornato con la descrizione del nuovo livello
+  1. sql/01-lavoro4-tempo.sql   -> aggiunge il campo "tempo" al tavolo
+  2. sql/02-lavoro6-chat.sql    -> crea la chat
 
-Cos'è cambiato per chi gioca
-------------------------------
-Nella schermata dove si sceglie il livello del computer (contro il computer, o assegnando
-un livello a ogni posto in una partita a 4) ora c'è una quarta scelta: "Pro 2", oltre a
-Facile, Medio e Pro.
+Non serve nessuna riga di comando: solo SQL Editor -> incolla -> Run,
+come hai già fatto per l'arbitro. Ho letto le funzioni vere sul tuo
+database prima di scrivere questi script, quindi non sono scritti "a
+memoria": riproducono esattamente quello che c'è oggi più la parte
+nuova.
 
-Pro 2 gioca in modo diverso dagli altri tre: quelli scelgono le mosse seguendo regole
-scritte a tavolino ("se questa carta serve a più di due giochi, prendila"). Pro 2 invece,
-per le decisioni più delicate, prova davvero la mossa su una copia nascosta della partita
-e guarda se il risultato complessivo migliora, prima di deciderla per davvero — un po'
-come farebbe un giocatore che si chiede "e se facessi così?" prima di muovere.
+Se pubblichi il codice PRIMA di eseguire gli script, l'app online
+smette di aprire tavoli nuovi finché non li esegui (il resto — le
+partite già in corso — continua a funzionare). Quindi l'ordine giusto
+è: prima gli script SQL, poi pubblichi burraco-v34.
 
-Ho verificato che Pro 2 batte nettamente sia il Pro che il Medio, come richiesto:
-  - contro il Medio: vince 8 partite su 10 (80,6% su 700 partite giocate in automatico)
-  - contro il Pro:   vince quasi 3 partite su 4 (74,6% su 700 partite)
-Il vostro obiettivo era almeno 65% contro il Medio e 60% contro il Pro: ampiamente centrato.
+File in questo zip
+======================
 
-Una cosa da sapere, non nascosta
------------------------------------
-Con Pro 2 in campo le mani durano un po' di più (perché raccoglie molto materiale dal
-monte scarti, esattamente come il Pro, solo ancora di più) — non è un difetto che blocca
-la partita: se una mano si allunga troppo, la partita ha già una "valvola di sicurezza"
-(già presente da prima) che la chiude comunque in modo pulito dopo 400 mosse. Ho provato a
-stringere le soglie per accorciare le mani, senza che cambiasse molto e senza guadagnare
-niente in forza — quindi ho lasciato le soglie più larghe. Se giocando vi sembra che le
-partite con Pro 2 durino troppo, ditemelo: è il primo punto su cui intervenire.
+- src/engine.js    (turno d'ufficio: E.turnoUfficio, discard con
+                     flag "ufficio", chiusura dopo 3 di fila)
+- src/rete.js       (apri() con il tempo, mandaChat/nuoveChat/
+                     saltaChatEsistente)
+- src/ui.js         (cronometro del turno, scelta del tempo quando si
+                     apre un tavolo, tutta la chat: FRASI_CHAT,
+                     chatDialog, fumetti, antispam, muto)
+- src/suoni.js      (il suono della chat)
+- styles.css        (stile del conto alla rovescia, del fumetto, della
+                     finestra della chat)
+- sw.js             (VERSIONE alzata a burraco-v34)
+- README.md         (spiegato nel testo, versione aggiornata, 109 test)
+- tests/engine.test.js  (6 test nuovi per il turno d'ufficio)
+- sql/01-lavoro4-tempo.sql  (da eseguire tu, vedi sopra)
+- sql/02-lavoro6-chat.sql   (da eseguire tu, vedi sopra)
+- sql/GUIDA.md              (le istruzioni passo-passo per i due script)
 
-Come installare
-----------------
-1. Sostituite nel repository i file con lo stesso nome elencati sopra.
-2. `npm test` deve dare 103 test verdi (motore di gioco + regole di tutti e 4 i livelli).
-3. Alzate la cache del sito (già fatto: sw.js è già a burraco-v33) e pubblicate come
-   al solito.
+Se avevi già installato lo zip precedente (lavoro1-pro2, v33), qui
+trovi tutti i file toccati in questo lavoro — sostituiscili tutti,
+compreso engine.js (è cambiato anche lui, per il turno d'ufficio).
 
-Verifica fatta
----------------
-- `npm test`: 103/103 verdi.
-- `node tools/simula-livelli.js 150`: gira automaticamente migliaia di partite fra ogni
-  coppia di livelli e mostra chi vince — Pro 2 batte nettamente Pro e Medio, e i primi tre
-  livelli restano nello stesso ordine di prima (nessuna partita rotta dal lavoro fatto).
+Come si verifica
+===================
 
-Dettaglio tecnico completo (come funziona "il punteggio di stato", i problemi trovati e
-corretti durante lo sviluppo, i numeri esatti) è salvato nel progetto Claude, nel documento
-"claude/offline-livelli-ia.md" (sezione "Livello 4 — Pro 2") e in
-"claude/piano-computer-online-chat.md" (sezione "Lavoro 1 — fatto").
+npm test    -> 109 test, tutti verdi (103 di prima + 6 nuovi sul
+               turno d'ufficio: pesca solo dal tallone, non cala
+               nulla, tre di fila chiudono la partita, e la mossa si
+               ricostruisce identica rigiocando tutte le mosse dal
+               seme — è il percorso vero usato quando rientri online)
 
-Prossimo lavoro in ordine (dal piano dei sei lavori che avete dettato il 2 settembre):
-Lavoro 4, l'online a tempo.
+A occhio, dopo aver eseguito i due script SQL e pubblicato:
+- apri un tavolo, scegli per esempio "30 secondi" -> l'altro si siede
+  -> giocate, e vedete il conto alla rovescia al proprio turno.
+- lascia scadere apposta un turno (non toccare niente per 30 secondi)
+  -> il turno passa da solo, con un avviso, e la carta scartata è
+  presa dal tallone, non dal monte scarti.
+- tasto 💬 -> manda una frase -> compare sul telefono dell'altro come
+  fumetto, con un suono.
+- prova a mandare frasi molto in fretta -> dopo la prima, il tasto
+  aspetta qualche secondo prima di lasciartene mandare un'altra.
+
+Il piano dei sei lavori che avevi dettato il 2 settembre è finito con
+questa consegna (2, 3, 5, 1, 4 e 6 sono tutti fatti).

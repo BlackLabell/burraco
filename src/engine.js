@@ -309,6 +309,18 @@ function newGame(mode, opts = {}) {
     // applicare, non viene mai dedotto o modificato durante la partita.
     livelli: opts.livelli ? [...opts.livelli] : new Array(nP).fill(null),
     log: [],
+    // Online a tempo (Lavoro 4): secondi per turno, scelti da chi apre il
+    // tavolo — null/0 vuol dire "nessun limite". Non c'entra niente con la
+    // partita contro il computer: lì resta sempre null. Vedi turnoUfficio()
+    // più sotto e src/rete.js/src/ui.js per l'orologio vero e proprio (il
+    // motore non conosce l'ora: sa solo eseguire il turno d'ufficio quando
+    // gli viene chiesto).
+    tempo: opts.tempo || null,
+    // Quanti turni d'ufficio di fila sono già successi, in tutta la partita
+    // (non si azzera a ogni mano, si azzera a ogni turno giocato per davvero
+    // — vedi discard()). A tre di fila la partita si chiude da sola.
+    turniUfficioFila: 0,
+    chiusuraUfficio: false,
   };
   startHand(g);
   return g;
@@ -530,7 +542,7 @@ function addToMeld(g, p, meldId, ids) {
   return ok(r);
 }
 
-function discard(g, p, id) {
+function discard(g, p, id, opts) {
   if (g.handOver) return err('Mano conclusa.');
   if (g.turn !== p || g.phase !== 'meld') return err('Devi prima pescare.');
   const c = g.hands[p].find(x => x.id === id);
@@ -547,12 +559,62 @@ function discard(g, p, id) {
   }
   g.hands[p] = g.hands[p].filter(x => x !== c);
   g.discard.unshift(c);
-  g.mosse.push({ t: 's', p, id: c.id });
+  // Online a tempo (Lavoro 4): uno scarto "d'ufficio" (vedi turnoUfficio())
+  // porta il segno con sé nel registro, così anche chi lo rilegge più tardi
+  // (rientro, l'altro telefono) tiene il conto giusto di quanti sono di
+  // fila — non solo chi lo esegue nel momento stesso.
+  const ufficio = !!(opts && opts.ufficio);
+  g.mosse.push({ t: 's', p, id: c.id, ...(ufficio ? { ufficio: true } : {}) });
   g.log.push({ t: 'discard', p, c: cardLabel(c) });
+  if (ufficio) {
+    g.turniUfficioFila = (g.turniUfficioFila || 0) + 1;
+    g.log.push({ t: 'ufficio', p, fila: g.turniUfficioFila });
+  } else {
+    g.turniUfficioFila = 0;
+  }
   const r = afterHandEmpty(g, p, true);
   if (r.closed) return ok(r);
+  // Tre turni d'ufficio di fila: come la valvola di sicurezza dei 400 turni,
+  // non è una regola di gioco, è una rete per non tenere in ostaggio la
+  // partita se uno dei due non c'è più. Chiude la mano dov'è (stesso
+  // meccanismo di endHand(g, null) già usato dalla valvola) e chiude la
+  // partita senza dichiarare un vincitore: si avvisano entrambi.
+  if (ufficio && g.turniUfficioFila >= 3) {
+    endHand(g, null);
+    g.finished = true;
+    g.winner = null;
+    g.chiusuraUfficio = true;
+    g.log.push({ t: 'chiusuraUfficio' });
+    return ok(r);
+  }
   nextTurn(g);
   return ok(r);
+}
+
+/**
+ * Il turno d'ufficio (Lavoro 4, online a tempo): quando il tempo di un turno
+ * scade, si pesca dal tallone — mai il monte scarti, non è una scelta da
+ * fare — e si scarta la carta meno utile secondo le stesse regole del
+ * livello Medio (`utilitaCarta`), senza calare nulla, anche avendo in mano
+ * una combinazione pronta. Questa funzione non decide SE il tempo sia
+ * scaduto: quello lo sa solo chi tiene l'orologio (src/ui.js, che guarda
+ * l'orario del server); qui si esegue solo la mossa, una volta presa la
+ * decisione altrove. Vale per qualunque posto, umano o no: online un posto
+ * umano ha `g.livelli[p] == null`, che `livelloComputer` legge già come
+ * Medio — è la stessa identica classifica di utilità, non ce n'è bisogno
+ * di un'altra.
+ */
+function turnoUfficio(g, p) {
+  if (g.handOver) return err('Mano conclusa.');
+  if (g.turn !== p) return err('Non è il turno di questo posto.');
+  if (g.phase !== 'draw') return err('È già stata pescata la carta questo turno.');
+  const rd = draw(g, p, 'stock');
+  if (!rd.ok) return rd;
+  const scelta = g.hands[p]
+    .map(c => ({ c, u: utilitaCarta(g, p, c, 2) }))
+    .sort((a, b) => a.u - b.u)[0];
+  if (!scelta) return err('Nessuna carta da scartare.');
+  return discard(g, p, scelta.c.id, { ufficio: true });
 }
 
 function nextTurn(g) {
@@ -631,7 +693,7 @@ function applicaMossa(g, m) {
   if (m.t === 'p') return draw(g, m.p, m.s);
   if (m.t === 'c') return meldNew(g, m.p, m.ids);
   if (m.t === 'a') return addToMeld(g, m.p, m.m, m.ids);
-  if (m.t === 's') return discard(g, m.p, m.id);
+  if (m.t === 's') return discard(g, m.p, m.id, m.ufficio ? { ufficio: true } : undefined);
   return err('Mossa sconosciuta: ' + m.t);
 }
 
@@ -645,6 +707,9 @@ function inizioMano(g) {
     finished: false, winner: null,
     livelli: g.livelli ? [...g.livelli] : new Array(g.nPlayers).fill(null),
     log: i >= 0 ? g.log.slice(0, i) : [],
+    tempo: g.tempo || null,
+    turniUfficioFila: g.turniUfficioFila || 0,
+    chiusuraUfficio: false,
   };
   startHand(b);
   return b;
@@ -1395,7 +1460,7 @@ const ENGINE = {
   cardValue, cardLabel, isJolly, isPinella, canBeWild, buildDeck, makeRng, shuffle,
   solveSeq, solveSet, solveMeld, solveWith, meldCards, canAttach, burracoType, meldPoints,
   spostamentoLecito, cartaCheServe,
-  newGame, startHand, nextHand, endHand, draw, meldNew, addToMeld, discard, nextTurn,
+  newGame, startHand, nextHand, endHand, draw, meldNew, addToMeld, discard, nextTurn, turnoUfficio,
   teamMelds, hasBurraco, canEmptyHand, canMeldToZero, minimoDaTenere, findNewMelds, sortCards,
   LIVELLI_COMPUTER, livelloComputer, carteVisibili, puoUscireCalando, strategiaPartita,
   turnoComputer, pescaComputer, calataComputer, scartaComputer,

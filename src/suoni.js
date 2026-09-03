@@ -209,6 +209,13 @@ const voci = {
 
   /** qualcosa non si può fare */
   no: () => nota({ freq: 196, durata: 0.18, volume: 0.1, forma: 'triangle' }),
+
+  /** una frase di chat arrivata dall'altro (Lavoro 6): due colpetti leggeri,
+      non deve confondersi con "tocca a te" né distrarre dal gioco */
+  chat: () => {
+    nota({ freq: 740, durata: 0.09, volume: 0.08 });
+    nota({ freq: 988, quando: 0.07, durata: 0.12, volume: 0.07 });
+  },
 };
 
 export const Suoni = {

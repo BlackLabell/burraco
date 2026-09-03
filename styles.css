@@ -489,6 +489,36 @@ header.top{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
 }
 @media (prefers-reduced-motion:reduce){ .banner-rientro{animation:none} }
 
+/* ── Online a tempo (Lavoro 4): il conto alla rovescia ─────────
+   Un numero piccolo di fianco a "Tocca a te" / "Turno di X". Si aggiorna
+   scrivendo direttamente nel nodo (vedi avviaCronometro in src/ui.js),
+   mai ridisegnando tutto il tavolo. */
+.countdown{
+  display:inline-block; margin-left:8px; font-variant-numeric:tabular-nums;
+  font-size:12px; letter-spacing:.02em; color:var(--felt-soft);
+  padding:1px 7px; border:1px solid var(--felt-line); border-radius:10px;
+  vertical-align:middle;
+}
+.countdown.poco{color:#ff8a80; border-color:#ff8a80}
+
+/* ── Chat di gioco (Lavoro 6): il fumetto ──────────────────────
+   Compare vicino al posto di chi parla e sparisce da solo dopo qualche
+   secondo (mostraFumetto in src/ui.js). ".seat" e la riga della mano sono
+   i due posti dove può comparire: qui basta che siano "position:relative". */
+.seat{position:relative}
+.fumetto{
+  position:absolute; bottom:100%; left:50%; transform:translateX(-50%);
+  margin-bottom:6px; z-index:22; pointer-events:none; white-space:nowrap;
+  max-width:34ch; overflow:hidden; text-overflow:ellipsis;
+  padding:5px 11px; border-radius:14px; font-size:12.5px; line-height:1.3;
+  color:var(--felt-ink); background:rgba(10,22,16,.86); border:1px solid var(--felt-line);
+  box-shadow:0 6px 16px rgba(0,0,0,.3);
+  animation:annuncioEntra .3s cubic-bezier(.15,.9,.25,1) both;
+}
+.fumetto-mia{position:absolute; bottom:100%; left:8px; transform:none; margin-bottom:6px}
+.posto-lato .fumetto{max-width:20ch; white-space:normal; font-size:11px}
+@media (prefers-reduced-motion:reduce){ .fumetto{animation:none} }
+
 /* ── È il tuo turno ────────────────────────────────────────── */
 .board.turno{border-color:var(--accent)}
 .board.turno .zone.mano{
@@ -718,6 +748,21 @@ details.rules b{color:var(--ink)}
 .opt-livello span{font-size:13.5px}
 .opt-livello select{font:inherit; padding:5px 8px; border-radius:3px; border:1px solid var(--edge);
   background:var(--panel); color:var(--ink)}
+
+/* ── Online a tempo (Lavoro 4): la scelta in onlineDialog ──────── */
+.opts-tempo{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px}
+.opt-tempo{
+  display:flex; align-items:center; gap:6px; padding:6px 11px;
+  border:1px solid var(--edge); border-radius:20px; cursor:pointer; font-size:13px;
+}
+.opt-tempo input{accent-color:var(--accent); margin:0}
+.opt-tempo:has(input:checked){border-color:var(--accent); background:var(--panel-2)}
+
+/* ── Chat di gioco (Lavoro 6): le frasi pronte in chatDialog ───── */
+.chat-gruppo{margin-top:10px}
+.chat-gruppo:first-of-type{margin-top:2px}
+.chat-frasi{display:flex; flex-wrap:wrap; gap:6px}
+.chat-frase{padding:7px 12px; font-size:13px; border-radius:16px}
 
 
 /* ══════════════════════════════════════════════════════════════

@@ -289,6 +289,57 @@ t('prendere il monte scarti prende tutte le carte', () => {
   assert(r.ok, r.error); eq(g.hands[p].length, n + 3); eq(g.discard.length, 0);
 });
 
+console.log('--- Carta appena presa dal monte: nessuna regola per l\'umano, solo un accorgimento anti-loop per il computer ---');
+
+t('un umano può riscartare subito la carta che era in cima al monte, nessuna regola lo vieta', () => {
+  const g = E.newGame('1v1', { seed: 31 });
+  g.turn = 0; g.phase = 'draw';
+  const cima = C(9, 'C');
+  g.discard = [cima, C(4, 'P'), C(11, 'F')];
+  const r = E.draw(g, 0, 'pile');
+  assert(r.ok, r.error);
+  eq(g.presaMonteId, cima.id, 'il motore deve comunque ricordarsi quale carta era in cima (serve al computer):');
+  const rs = E.discard(g, 0, cima.id);
+  assert(rs.ok, 'un giocatore umano deve poter ributtare subito la carta appena presa, se vuole: ' + (rs.error || ''));
+});
+
+t('g.presaMonteId si azzera pescando dal tallone o passando il turno', () => {
+  const g = E.newGame('1v1', { seed: 34 });
+  g.turn = 0; g.phase = 'draw';
+  const cima = C(9, 'C');
+  g.discard = [cima, C(4, 'P')];
+  E.draw(g, 0, 'pile');
+  assert(g.presaMonteId !== null, 'subito dopo la presa dal monte deve essere segnata');
+  const altra = g.hands[0].find(c => c.id !== cima.id);
+  E.discard(g, 0, altra.id);   // chiude il turno
+  eq(g.presaMonteId, null, 'deve azzerarsi passando il turno:');
+});
+
+t('il computer preferisce scartare un\'altra carta invece di quella appena presa dal monte', () => {
+  const g = E.newGame('1v1', { seed: 35 });
+  g.livelli = [2, null];
+  g.turn = 0; g.phase = 'meld';
+  // senza l'accorgimento il 3 di picche, isolato, sarebbe la prima scelta: i tre re
+  // insieme valgono un tris quasi pronto, molto più utile da tenere
+  const cima = C(3, 'P');
+  g.hands[0] = [cima, C(13, 'C'), C(13, 'Q'), C(13, 'F')];
+  g.presaMonteId = cima.id;
+  const scartata = E.scartaComputer(g, 0);
+  assert(scartata, 'il computer deve riuscire a scartare qualcosa');
+  assert(scartata.id !== cima.id, 'ha scartato per prima la carta appena presa dal monte, che doveva evitare se aveva altro');
+});
+
+t('ma il computer la scarta comunque se è rimasta l\'unica carta: non è un divieto rigido', () => {
+  const g = E.newGame('1v1', { seed: 36 });
+  g.livelli = [2, null];
+  g.turn = 0; g.phase = 'meld';
+  const cima = C(4, 'Q');
+  g.hands[0] = [cima];               // stato costruito a mano: come dopo aver calato tutto il resto
+  g.presaMonteId = cima.id;          // era la carta appena presa dal monte in questo turno
+  const scartata = E.scartaComputer(g, 0);
+  assert(scartata && scartata.id === cima.id, 'con un\'unica carta in mano il computer deve comunque riuscire a scartarla');
+});
+
 t('svuotare la mano prende il pozzetto, non chiude', () => {
   const g = E.newGame('1v1', { seed: 21 });
   g.turn = 0; g.phase = 'meld';
@@ -644,4 +695,82 @@ t('annulla: torna indietro di una calata, non oltre', () => {
     }
   }
   assert(trovata, 'nessuna calata trovata in 60 semi');
+});
+
+console.log('--- Lavoro 4: turno d\'ufficio (online a tempo) ---');
+
+t('turnoUfficio pesca dal tallone e scarta come il Medio, senza calare nulla anche con un tris pronto', () => {
+  const g = E.newGame('1v1', { seed: 501 });
+  g.turn = 0; g.phase = 'draw';
+  const tris = [C(9, 'P'), C(9, 'C'), C(9, 'Q')];
+  const jolly = JOLLY();
+  g.hands[0] = [...tris, jolly];
+  const stockPrima = g.stock.length;
+  const r = E.turnoUfficio(g, 0);
+  assert(r.ok, 'il turno d\'ufficio deve riuscire');
+  eq(g.stock.length, stockPrima - 1, 'deve pescare dal tallone, una carta sola');
+  eq(g.teams[0].melds.length, 0, 'non deve calare nulla, nemmeno un tris già pronto');
+  eq(g.hands[0].length, 4, 'pesca una carta e ne scarta una: la mano torna alla stessa misura');
+  assert(g.discard[0].r !== 0, 'non deve scartare la matta se ha altro da scartare');
+});
+
+t('turnoUfficio non tocca mai il monte scarti, nemmeno con una carta comoda in cima', () => {
+  const g = E.newGame('1v1', { seed: 505 });
+  g.turn = 0; g.phase = 'draw';
+  g.hands[0] = [C(9, 'P'), C(11, 'C'), C(2, 'F')];
+  g.discard = [C(9, 'C'), C(9, 'Q')];   // in cima una carta che allungherebbe un tris
+  const scartiPrima = g.discard.length;
+  E.turnoUfficio(g, 0);
+  eq(g.discard.length, scartiPrima + 1, 'deve solo aggiungere il proprio scarto, mai prendere il monte');
+});
+
+t('tre turni d\'ufficio di fila chiudono la partita, senza vincitore', () => {
+  const g = E.newGame('1v1', { seed: 502 });
+  let r = E.turnoUfficio(g, g.turn);
+  assert(r.ok); eq(g.turniUfficioFila, 1); assert(!g.finished);
+  r = E.turnoUfficio(g, g.turn);
+  assert(r.ok); eq(g.turniUfficioFila, 2); assert(!g.finished);
+  r = E.turnoUfficio(g, g.turn);
+  assert(r.ok, JSON.stringify(r));
+  eq(g.turniUfficioFila, 3, 'la striscia deve arrivare a tre');
+  assert(g.finished, 'la partita deve chiudersi al terzo turno d\'ufficio di fila');
+  assert(g.handOver, 'anche la mano in corso si chiude, come la valvola dei 400 turni');
+  eq(g.winner, null, 'nessun vincitore dichiarato: si avvisano entrambi, non ha vinto nessuno');
+  assert(g.chiusuraUfficio, 'deve restare il segno che la chiusura è per inattività');
+});
+
+t('un turno giocato per davvero azzera la striscia dei turni d\'ufficio', () => {
+  const g = E.newGame('1v1', { seed: 503 });
+  E.turnoUfficio(g, g.turn);
+  eq(g.turniUfficioFila, 1);
+  E.draw(g, g.turn, 'stock');
+  const carta = g.hands[g.turn][0];
+  E.discard(g, g.turn, carta.id);
+  eq(g.turniUfficioFila, 0, 'uno scarto giocato per davvero azzera la striscia');
+});
+
+t('il turno d\'ufficio si vede nel registro delle mosse e si riapplica identico con applicaMossa', () => {
+  const g = E.newGame('1v1', { seed: 504 });
+  E.turnoUfficio(g, g.turn);
+  const ultima = g.mosse[g.mosse.length - 1];
+  eq(ultima.t, 's'); assert(ultima.ufficio === true, 'lo scarto deve portare il segno "ufficio"');
+
+  // Lo stesso seme, rigiocato da zero applicando via applicaMossa esattamente
+  // le mosse appena registrate — la strada vera usata online per il rientro
+  // (src/ui.js applicaSenzaVolo) — deve arrivare alla stessa striscia: non
+  // basta rigiocare lo scarto, applicaMossa deve saperlo riconoscere.
+  const g2 = E.newGame('1v1', { seed: 504 });
+  for (const m of g.mosse) {
+    const r = E.applicaMossa(g2, m);
+    assert(r.ok, 'la mossa non si riapplica: ' + JSON.stringify(m));
+  }
+  eq(g2.turniUfficioFila, g.turniUfficioFila, 'la striscia deve arrivare allo stesso numero');
+});
+
+t('turnoUfficio non decide da sé quando il tempo è scaduto: rifiuta fuori dal proprio turno o fuori fase', () => {
+  const g = E.newGame('1v1', { seed: 506 });
+  const altro = 1 - g.turn;
+  assert(!E.turnoUfficio(g, altro).ok, 'deve rifiutare per il posto che non ha il turno');
+  E.draw(g, g.turn, 'stock');
+  assert(!E.turnoUfficio(g, g.turn).ok, 'deve rifiutare se si è già pescato questo turno');
 });

@@ -50,12 +50,19 @@ export const Rete = {
   codice: null,
   posto: 0,       // 0 = chi ha aperto il tavolo, 1 = chi è entrato
   passo: 0,       // quante mosse sono già passate di qui
+  chatPasso: 0,   // lo stesso, ma per la chat (Lavoro 6): un registro a parte,
+                  // così una raffica di frasi non sfasa mai i numeri delle mosse
   nomi: ['', ''],
   partita: null,
 
-  /** Apre un tavolo nuovo e ne restituisce il codice. */
-  async apri(nome, modo = '1v1', target = 2005) {
-    const p = await chiama('apri_tavolo', { p_modo: modo, p_target: target, p_nome: nome || '' });
+  /**
+   * Apre un tavolo nuovo e ne restituisce il codice.
+   * `tempo` (Lavoro 4, online a tempo): secondi per turno — 30, 45 o 60 —
+   * oppure `null`/`0` per nessun limite. La sceglie solo chi apre il tavolo,
+   * come deciso da Fabio: chi entra la eredita, non la sceglie.
+   */
+  async apri(nome, modo = '1v1', target = 2005, tempo = null) {
+    const p = await chiama('apri_tavolo', { p_modo: modo, p_target: target, p_nome: nome || '', p_tempo: tempo || null });
     this.siedi(p, 0);
     return p;
   },
@@ -80,6 +87,7 @@ export const Rete = {
     this.codice = p.codice;
     this.posto = posto;
     this.passo = 0;
+    this.chatPasso = 0;
     this.nomi = Array.isArray(p.nomi) ? p.nomi : ['', ''];
     this.partita = p;
   },
@@ -126,8 +134,44 @@ export const Rete = {
     return righe || [];
   },
 
+  /**
+   * Manda una frase di chat (Lavoro 6): solo frasi standard e faccine già
+   * decise, mai testo libero — vedi FRASI_CHAT in src/ui.js. Stessa logica
+   * di `manda()`, ma su un registro separato (tabella `chat`, non `mosse`):
+   * una raffica di frasi non deve poter sfasare il numero delle mosse vere.
+   */
+  async mandaChat(testo) {
+    if (!this.attiva) return;
+    const n = this.chatPasso++;
+    try {
+      await chiama('manda_chat', { p_codice: this.codice, p_n: n, p_posto: this.posto, p_testo: testo });
+    } catch (e) {
+      this.chatPasso = n;
+      throw e;
+    }
+  },
+
+  /** Solo per il rientro: manda avanti il cursore della chat senza mostrare
+      le frasi vecchie — non ha senso far ricomparire in fumetti un "Bel gioco!"
+      di dieci minuti fa. Le mosse vere si rigiocano tutte apposta (servono a
+      ricostruire il tavolo); la chat no, è solo cronaca del momento. */
+  async saltaChatEsistente() {
+    if (!this.attiva) return;
+    const righe = await chiama('leggi_chat', { p_codice: this.codice, p_da: 0 });
+    this.chatPasso = righe && righe.length ? righe[righe.length - 1].n + 1 : 0;
+  },
+
+  /** Le frasi arrivate da qui in poi, già in ordine. */
+  async nuoveChat() {
+    if (!this.attiva) return [];
+    const righe = await chiama('leggi_chat', { p_codice: this.codice, p_da: this.chatPasso });
+    const fuori = (righe || []).filter(r => r.n >= this.chatPasso);
+    if (fuori.length) this.chatPasso = fuori[fuori.length - 1].n + 1;
+    return fuori;
+  },
+
   esci() {
-    this.attiva = false; this.codice = null; this.posto = 0; this.passo = 0;
+    this.attiva = false; this.codice = null; this.posto = 0; this.passo = 0; this.chatPasso = 0;
     this.nomi = ['', '']; this.partita = null;
   },
 };
