@@ -1,112 +1,63 @@
-Lavoro 4 e 6: online a tempo + turno d'ufficio, chat di gioco
+Livello Pro: meno aggressivo nel prendere dal monte scarti
 ====================================================================
 
-ATTENZIONE: questa consegna ha DUE parti. Il codice qui dentro non
-funziona online finché non esegui anche i due script SQL nella
-cartella sql/ — vedi il passo 0 più sotto.
+Nessuna modifica al database: solo codice, si pubblica come sempre
+(trascinando i file su GitHub o con git push). Aggiorna solo i tre file
+di questo zip — gli altri (src/ui.js, styles.css, ecc.) restano quelli
+dell'ultima consegna (Chiudi/Entra al tavolo/rinomina livelli).
 
 Cosa cambia
 ==============
 
-1) Online a tempo (Lavoro 4)
-   Quando apri un tavolo, adesso puoi scegliere quanto tempo dare a
-   ogni turno: nessun limite (come oggi), 30, 45 o 60 secondi. Chi si
-   siede dopo di te vede lo stesso limite, non sceglie lui.
+Hai battuto il computer di livello Pro 2035 a 155 e hai notato che
+prendeva quasi sempre dal monte scarti, anche quando non gli serviva a
+niente. Avevi ragione: nel codice, la soglia che decide se vale la pena
+prendere il monte era troppo bassa (15 punti, contro i 25 del livello
+Difficile) — bastavano quattro carte qualsiasi di poco valore per farlo
+abboccare.
 
-   Se hai scelto un tempo, durante la partita vedi un conto alla
-   rovescia vicino a chi deve muovere. Se il tempo scade, il turno
-   passa "d'ufficio": si pesca dal tallone (mai dal monte scarti) e
-   si scarta in automatico la carta meno utile — la stessa logica del
-   computer di livello Medio — senza calare nulla. Se capita tre
-   volte di fila, la partita si chiude da sola e lo dice a entrambi
-   ("Partita interrotta", non vinta né persa) — serve solo per non
-   restare bloccati se l'altro sparisce davvero, non conta come
-   sconfitta nelle tue statistiche.
+Corretto in modo prudente, come avevi scelto:
+- la soglia è salita da 15 a 24 (resta un filo più permissiva di quella
+  del Difficile, ma non più a costo quasi zero)
+- il margine di un secondo controllo, che poteva far scattare comunque la
+  presa anche con soglie più severe, è salito da 4 a 8 (deve essere
+  chiaramente conveniente, non solo leggermente)
 
-   Un limite che ti dico apertamente: il conto alla rovescia si basa
-   sull'orologio del telefono, non su quello del server. Se ti
-   disconnetti e rientri, il conto riparte da capo invece di
-   "ricordare" quanto tempo era già passato — l'ho fatto apposta così:
-   è l'errore più sicuro dei due (dare un turno in più di cortesia a
-   chi rientra, piuttosto che far scattare un turno d'ufficio un
-   istante dopo che è tornato).
+Effetto sui test automatici (computer contro computer): il vantaggio del
+Pro sul Difficile è sceso da 74,6% a 59,7% su 300 partite. Non è un
+errore: è il compromesso che hai accettato consapevolmente. L'obiettivo
+di questa modifica non era restare fortissimo contro gli altri livelli
+del computer, ma reggere meglio contro un umano — le due cose tirano in
+direzioni un po' opposte con questo tipo di soglie.
 
-2) Chat di gioco (Lavoro 6)
-   Vicino al tuo posto c'è un tasto 💬, solo online (non c'è contro il
-   computer: non hai nessuno con cui parlare). Apre un elenco di frasi
-   già pronte e faccine — non si scrive testo libero, è tutta la lista
-   che avevi approvato, "Che cazzo" compreso, così com'era.
-
-   Le frasi appaiono in un fumetto sopra chi le manda, con un piccolo
-   suono. Se danno fastidio, un tasto vicino le mette in muto per
-   quella partita. C'è anche un limite automatico (una frase ogni 3
-   secondi a testa, e un tetto per mano) così non si può intasare la
-   chat.
-
-Cosa DEVI fare tu, sul pannello Supabase (una volta sola)
-==============================================================
-
-Prima di pubblicare questo codice, apri il pannello Supabase del tuo
-progetto "burraco" ed esegui i due script nella cartella sql/, uno
-alla volta, così come spiegato passo per passo in sql/GUIDA.md:
-
-  1. sql/01-lavoro4-tempo.sql   -> aggiunge il campo "tempo" al tavolo
-  2. sql/02-lavoro6-chat.sql    -> crea la chat
-
-Non serve nessuna riga di comando: solo SQL Editor -> incolla -> Run,
-come hai già fatto per l'arbitro. Ho letto le funzioni vere sul tuo
-database prima di scrivere questi script, quindi non sono scritti "a
-memoria": riproducono esattamente quello che c'è oggi più la parte
-nuova.
-
-Se pubblichi il codice PRIMA di eseguire gli script, l'app online
-smette di aprire tavoli nuovi finché non li esegui (il resto — le
-partite già in corso — continua a funzionare). Quindi l'ordine giusto
-è: prima gli script SQL, poi pubblichi burraco-v34.
+**Questa correzione è ancora da confermare.** I numeri sui bot dicono che
+prende meno a caso, ma se batte anche te resta da vedere solo giocandoci
+davvero. Gioca qualche partita contro il Pro e dimmi come va:
+- se è ancora troppo debole, si può stringere di più (soglia più alta) o
+  aggiungere un freno esplicito per quando si appesantisce la mano senza
+  un uso chiaro delle carte prese
+- se ti sembra invece troppo passivo o diverso da come giocava prima in
+  modo che non ti piace, si può riportare la soglia più vicina a 15
 
 File in questo zip
 ======================
 
-- src/engine.js    (turno d'ufficio: E.turnoUfficio, discard con
-                     flag "ufficio", chiusura dopo 3 di fila)
-- src/rete.js       (apri() con il tempo, mandaChat/nuoveChat/
-                     saltaChatEsistente)
-- src/ui.js         (cronometro del turno, scelta del tempo quando si
-                     apre un tavolo, tutta la chat: FRASI_CHAT,
-                     chatDialog, fumetti, antispam, muto)
-- src/suoni.js      (il suono della chat)
-- styles.css        (stile del conto alla rovescia, del fumetto, della
-                     finestra della chat)
-- sw.js             (VERSIONE alzata a burraco-v34)
-- README.md         (spiegato nel testo, versione aggiornata, 109 test)
-- tests/engine.test.js  (6 test nuovi per il turno d'ufficio)
-- sql/01-lavoro4-tempo.sql  (da eseguire tu, vedi sopra)
-- sql/02-lavoro6-chat.sql   (da eseguire tu, vedi sopra)
-- sql/GUIDA.md              (le istruzioni passo-passo per i due script)
-
-Se avevi già installato lo zip precedente (lavoro1-pro2, v33), qui
-trovi tutti i file toccati in questo lavoro — sostituiscili tutti,
-compreso engine.js (è cambiato anche lui, per il turno d'ufficio).
+- src/engine.js   (SOGLIE_LIVELLO[4].sogliaValore 15->24, margine in
+                    pescaPro2 4->8, un commento che spiega perché)
+- sw.js           (VERSIONE alzata a burraco-v36)
+- README.md       (spiegato nel testo, versione aggiornata)
 
 Come si verifica
 ===================
 
-npm test    -> 109 test, tutti verdi (103 di prima + 6 nuovi sul
-               turno d'ufficio: pesca solo dal tallone, non cala
-               nulla, tre di fila chiudono la partita, e la mossa si
-               ricostruisce identica rigiocando tutte le mosse dal
-               seme — è il percorso vero usato quando rientri online)
+npm test    -> 109 test, tutti verdi (nessun test controlla il numero
+               esatto delle soglie, quindi non c'era niente da aggiornare
+               lì — solo il comportamento generale, verificato)
 
-A occhio, dopo aver eseguito i due script SQL e pubblicato:
-- apri un tavolo, scegli per esempio "30 secondi" -> l'altro si siede
-  -> giocate, e vedete il conto alla rovescia al proprio turno.
-- lascia scadere apposta un turno (non toccare niente per 30 secondi)
-  -> il turno passa da solo, con un avviso, e la carta scartata è
-  presa dal tallone, non dal monte scarti.
-- tasto 💬 -> manda una frase -> compare sul telefono dell'altro come
-  fumetto, con un suono.
-- prova a mandare frasi molto in fretta -> dopo la prima, il tasto
-  aspetta qualche secondo prima di lasciartene mandare un'altra.
+Non un test automatico ma un dato utile: ho anche rifatto la simulazione
+computer-contro-computer mirata (Difficile contro Pro, 300 partite): il
+Pro vince 59,7% invece del 74,6% di prima — coerente con l'obiettivo di
+questa modifica.
 
-Il piano dei sei lavori che avevi dettato il 2 settembre è finito con
-questa consegna (2, 3, 5, 1, 4 e 6 sono tutti fatti).
+A occhio: gioca contro il Pro qualche volta e guarda se prende ancora il
+monte per carte che non gli servono, o se ora ti sembra più selettivo.

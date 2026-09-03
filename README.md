@@ -7,7 +7,7 @@ con quattro livelli di difficoltà) oppure **online in due**, con un codice di q
 dettare all'altro. Gira nel browser, si installa sul telefono e contro il computer funziona
 anche senza connessione.
 
-**Versione pubblicata:** `burraco-v34` — 3 settembre 2026
+**Versione pubblicata:** `burraco-v36` — 3 settembre 2026
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server proprio, nessun
 account a pagamento, nessun dominio da comprare.
 
@@ -37,20 +37,24 @@ livelli del computer**:
   carta naturale, non svela subito tutte le combinazioni che ha in mano (una apertura debole a
   turno), nello scarto pesa parecchio il rischio di regalare punti all'avversario, e come il
   Facile prende quasi sempre il monte se la carta scoperta in cima è una matta.
-- **Pro** — in più osserva cosa prende l'avversario dal monte scarti per scartare più al
+- **Difficile** — in più osserva cosa prende l'avversario dal monte scarti per scartare più al
   sicuro, cala tutto insieme quando conviene mostrare le carte, rincorre il pozzetto "al volo"
   quando è a portata, decide se chiudere in fretta o inseguire punti guardando il punteggio
   della partita, e gioca in ampiezza: raccoglie molto più volentieri dal monte scarti per avere
   sempre materiale pronto per il gioco più lungo e più pulito possibile. Batte chiaramente sia
   Medio sia Facile — non solo sulla carta, verificato facendoli giocare centinaia di partite fra
   loro (`tools/simula-livelli.js`).
-- **Pro 2** — stessa base decisa del Pro (cala sempre tutto quello che può, nell'ordine giusto,
-  raccoglie ancora più volentieri dal monte scarti), ma per le scelte più delicate — vale la
-  pena usare questa matta adesso? conviene prendere questo monte o rischiare il tallone? quale
-  carta scartare — non segue soglie scritte a tavolino: **prova davvero la mossa su una copia
-  della partita e guarda a cosa porta** (`valoreStato`/`valutaMossa` in `src/engine.js`), prima
-  di deciderla. Batte nettamente sia il Pro sia il Medio — verificato con `tools/simula-
-  livelli.js`, vedi i numeri in `claude/offline-livelli-ia.md` nel progetto.
+- **Pro** — stessa base decisa del Difficile (cala sempre tutto quello che può, nell'ordine
+  giusto, raccoglie ancora più volentieri dal monte scarti), ma per le scelte più delicate —
+  vale la pena usare questa matta adesso? conviene prendere questo monte o rischiare il tallone?
+  quale carta scartare — non segue soglie scritte a tavolino: **prova davvero la mossa su una
+  copia della partita e guarda a cosa porta** (`valoreStato`/`valutaMossa` in `src/engine.js`,
+  ancora chiamato "Pro 2" nel nome interno delle funzioni), prima di deciderla. Batte il
+  Difficile e il Medio nelle partite fra computer — verificato con `tools/simula-livelli.js`,
+  vedi i numeri in `claude/offline-livelli-ia.md` nel progetto. **Contro un umano vero, giocando
+  con Fabio, prendeva dal monte scarti in modo troppo aggressivo** anche quando non gli serviva
+  (bastavano poche carte di scarso valore per farlo abboccare) — soglia corretta il 3 settembre
+  2026, in attesa di conferma da partite vere: dettaglio in `claude/offline-livelli-ia.md`.
 
 La scelta si ricorda da una partita all'altra, e il livello di ogni computer è scritto accanto
 al suo nome durante la partita. **Nessuno dei quattro livelli legge mai le carte in mano a un
@@ -142,8 +146,8 @@ registro basta a ricostruire la mano carta per carta. È il meccanismo dietro **
 gioco online stesso — fra i due telefoni non viaggia il tavolo, viaggiano le mosse, poche
 decine di byte l'una, ognuna applicata dall'altro telefono con lo stesso motore.
 
-**Sezione "IL COMPUTER" del motore**: tre livelli (Facile/Medio/Pro), scelti da chi apre la
-partita in `g.livelli` (mai cambiati durante il gioco, mai indovinati). Vincolo che vale per
+**Sezione "IL COMPUTER" del motore**: quattro livelli (Facile/Medio/Difficile/Pro), scelti da chi
+apre la partita in `g.livelli` (mai cambiati durante il gioco, mai indovinati). Vincolo che vale per
 tutte le funzioni della sezione, senza eccezioni: ognuna riceve la partita e il posto, e legge
 solo la mano di quel posto — tutto il resto che i livelli più alti usano in più (giochi calati,
 monte scarti, punteggio, chi ha preso cosa dal monte) è informazione già pubblica. Verificato
@@ -189,6 +193,14 @@ online smetterebbe di funzionare fino a riaccenderlo a mano.
 
 In ordine di priorità (vedi il piano completo nel progetto Claude):
 
+- **Verificare il livello Pro contro un umano**: prendeva dal monte scarti in modo troppo
+  aggressivo, sfruttabile da un avversario vero. Corretta il 3 settembre 2026 la soglia di
+  valore che lo faceva abboccare (da 15 a 24) e il margine del controllo dinamico (da 4 a 8):
+  nei test automatici il vantaggio sul Difficile è sceso da 74,6% a 59,7% su 300 partite — un
+  compromesso accettato di proposito, perché l'obiettivo è reggere contro Fabio, non contro gli
+  altri livelli del computer. **In attesa di conferma da partite vere** — se dopo qualche
+  partita risulta ancora troppo debole, o troppo ammorbidito rispetto agli altri livelli,
+  si ritocca ancora. Dettaglio in `claude/offline-livelli-ia.md`.
 - **Arbitro sul server**: guida e codice consegnati (tabella `tavoli`, funzioni SQL e una edge
   function). Prossimo passo, una volta che Fabio conferma che i tre passi della guida
   funzionano: collegare `src/rete.js` e le parti online di `src/ui.js` al nuovo sistema.
@@ -262,8 +274,8 @@ npm test      # 109 test: motore di gioco + le regole dei quattro livelli del co
 service worker non funzionano aprendo `index.html` con doppio clic (`file://`), ma solo via http.
 Non c'è niente da installare: `npm install` non serve, il progetto non ha dipendenze.
 
-Per verificare che i tre livelli del computer siano davvero ordinati come devono essere (Pro
-batte Medio batte Facile, non solo sulla carta): `node tools/simula-livelli.js`.
+Per verificare che i quattro livelli del computer siano davvero ordinati come devono essere
+(Pro batte Difficile batte Medio batte Facile, non solo sulla carta): `node tools/simula-livelli.js`.
 
 ---
 

@@ -757,7 +757,7 @@ function err(m) { return { ok: false, error: m }; }
    mai la mano di un altro posto, compagno di squadra compreso.
    ============================================================ */
 
-const LIVELLI_COMPUTER = { 1: 'Facile', 2: 'Medio', 3: 'Pro', 4: 'Pro 2' };
+const LIVELLI_COMPUTER = { 1: 'Facile', 2: 'Medio', 3: 'Difficile', 4: 'Pro' };
 
 /** Il livello del posto `p` (1/2/3/4). Se non è stato scelto, Medio. */
 function livelloComputer(g, p) {
@@ -769,14 +769,22 @@ function livelloComputer(g, p) {
     (prima erano sparse dentro `pescaComputer` e `utilitaCarta`) — comodo
     da ritoccare senza andare a caccia nel codice. Per i livelli 1-3 sono
     esattamente gli stessi numeri di prima, solo spostati qui: nessun
-    cambiamento di comportamento. Il livello 4 ("Pro 2", vedi più sotto)
-    non segue soglie fisse per decidere — usa un punteggio di stato
-    dinamico — ma condivide comunque `maxMano` come rete di sicurezza. */
+    cambiamento di comportamento. Il livello 4 (mostrato come "Pro" in app,
+    nome interno ancora "Pro 2" nel codice — vedi più sotto) non segue
+    soglie fisse per decidere — usa un punteggio di stato dinamico — ma
+    condivide comunque `maxMano` come rete di sicurezza. */
 const SOGLIE_LIVELLO = {
   1: { sogliaValore: 60, maxScarti: 12, maxMano: 16, pesoRischio: 4 },
   2: { sogliaValore: 60, maxScarti: 12, maxMano: 16, pesoRischio: 8 },
   3: { sogliaValore: 25, maxScarti: 18, maxMano: 20, pesoRischio: 8 },
-  4: { sogliaValore: 15, maxScarti: 18, maxMano: 20, pesoRischio: 8 },
+  // sogliaValore del 4 alzata da 15 a 24 il 3 settembre 2026: a 15 bastavano
+  // quattro carte qualsiasi di scarso valore (es. quattro 3-7, 5 punti
+  // l'una) per far prendere il monte anche senza che servissero a niente —
+  // un umano se ne accorge e lo sfrutta (vedi claude/offline-livelli-ia.md,
+  // "Livello 4 — troppo aggressivo contro un umano"). A 24 resta comunque
+  // sotto la soglia del livello 3 (25): prende ancora più volentieri, ma
+  // non più a costo zero.
+  4: { sogliaValore: 24, maxScarti: 18, maxMano: 20, pesoRischio: 8 },
 };
 function soglie(livello) { return SOGLIE_LIVELLO[livello] || SOGLIE_LIVELLO[2]; }
 
@@ -1379,7 +1387,12 @@ function pescaPro2(g, p) {
       const conMonte = valutaMossa(g, p, copia => draw(copia, p, 'pile'));
       if (conMonte !== null) {
         const stimaPescata = valoreStato(g, p) - valoreMedioNascosto(g, p);
-        if (conMonte > stimaPescata + 4) takePile = true;   // margine: solo se è chiaramente meglio
+        // margine alzato da 4 a 8 il 3 settembre 2026, insieme alla
+        // sogliaValore qui sopra: con un margine così stretto quasi ogni
+        // monte "neutro" passava comunque questo controllo, vanificando la
+        // soglia più severa. Un margine più largo pretende un vantaggio
+        // chiaro, non solo leggermente positivo, prima di prendere.
+        if (conMonte > stimaPescata + 8) takePile = true;
       }
     }
     if (g.stock.length === 0) takePile = true;
