@@ -32,6 +32,16 @@ let rientroTimer = null;  // il timer che lo fa sparire da solo
 let turnoIniziatoAlle = 0;
 let cronometroTick = null;
 let inviandoUfficio = false;   // impedisce due turni d'ufficio sovrapposti
+/* Problema di connessione (4 settembre 2026): quante volte di fila Rete.nuove()
+   è fallita nel giro di guardia (ciclaRete). Prima si limitava a ignorare
+   l'errore e continuare come se non ci fossero mosse nuove — così, con una
+   connessione instabile per un tempo lungo quanto un turno, chi aspettava
+   poteva eseguire un turno d'ufficio "alla cieca", senza sapere che l'altro
+   aveva già mosso davvero: le due partite si sfasavano (l'avversario non
+   vedeva quello che si era calato). Vedi la nota su ciclaRete più sotto. */
+let falliteConsecutive = 0;
+const SOGLIA_AVVISO_CONNESSIONE = 3;   // ~3,6 s di fila: un singolo giro perso non basta
+const MSG_CONN_INSTABILE = 'Connessione instabile: non riesco ad aggiornare la partita. Riprovo…';
 /* Chat di gioco (Lavoro 6): solo frasi standard e faccine, mai testo
    libero — vedi FRASI_CHAT più sotto. chatMuto è per-partita, non si
    salva: si azzera a ogni nuova partita online. */
@@ -367,7 +377,7 @@ function avviaCronometro() {
   fermaCronometro();
   cronometroTick = setInterval(() => {
     const el = $('countdown');
-    if (!el || !online || !G || !G.tempo || G.handOver || dealCount !== null) { if (el) el.textContent = ''; return; }
+    if (!el || !online || !G || !G.tempo || G.handOver || G.paused || dealCount !== null) { if (el) el.textContent = ''; return; }
     const restano = G.tempo - Math.floor((Date.now() - turnoIniziatoAlle) / 1000);
     el.textContent = '⏱ ' + Math.max(0, restano) + 's';
     el.classList.toggle('poco', restano <= 10);
@@ -463,7 +473,10 @@ function adattaMano() {
 }
 
 function render() {
-  const myTurn = !busy && !G.handOver && G.turn === HUMAN;
+  // In pausa (4 settembre 2026) nessuno dei due può muovere: stesso schema
+  // di "mano finita", il motore rifiuta comunque draw/meldNew/addToMeld/
+  // discard, questo è solo il primo livello (niente controlli cliccabili).
+  const myTurn = !busy && !G.handOver && !G.paused && G.turn === HUMAN;
   // carte scelte, e cosa ci si può fare davvero
   const scelte = G.hands[HUMAN].filter(c => sel.has(c.id));
   const puoAgire = myTurn && G.phase === 'meld' && scelte.length > 0;
@@ -486,6 +499,10 @@ function render() {
   let hint = msg;
   if (!hint) {
     if (dealCount !== null) hint = 'Distribuzione in corso…';   // se nessuno dice altro
+    else if (G.paused) hint = 'Partita in pausa.';
+    else if (G.pausaRichiesta && G.pausaRichiesta.da === HUMAN) {
+      hint = G.pausaRichiesta.versoPausa ? 'In attesa che l\'altro accetti la pausa…' : 'In attesa che l\'altro accetti la ripresa…';
+    }
     else if (G.handOver) hint = 'Mano conclusa.';
     else if (busy || G.turn !== HUMAN) hint = '';
     else if (G.phase === 'draw') hint = 'Pesca dal tallone o prendi il monte.';
@@ -533,7 +550,7 @@ function render() {
 
   const stato = `
     <div class="state">
-      <div class="now">${G.handOver ? 'Mano finita' : G.turn === HUMAN ? 'Tocca a te' : 'Turno di ' + G.names[G.turn]}${online && G.tempo && !G.handOver && dealCount === null ? `<span class="countdown" id="countdown"></span>` : ''}</div>
+      <div class="now">${G.paused ? '⏸ In pausa' : G.handOver ? 'Mano finita' : G.turn === HUMAN ? 'Tocca a te' : 'Turno di ' + G.names[G.turn]}${online && G.tempo && !G.handOver && !G.paused && dealCount === null ? `<span class="countdown" id="countdown"></span>` : ''}</div>
       ${hint ? `<div class="hint ${msgErr ? 'err' : ''}">${hint}</div>` : ''}
     </div>`;
 
@@ -835,6 +852,7 @@ async function avviaOnline(partita, posto, mosse) {
   online = true;
   HUMAN = posto;
   chatMuto = false; ultimoChatInviato = 0; chatInviatiMano = 0; fumetti = {};
+  falliteConsecutive = 0;   // problema di connessione: si riparte da zero a ogni tavolo
   // Lavoro 4: il tempo per turno lo sceglie solo chi ha aperto il tavolo,
   // e viaggia dentro la riga della partita — sia chi apre sia chi entra lo
   // leggono da qui, mai da un menu proprio.
@@ -921,14 +939,31 @@ async function eseguiTurnoUfficio() {
 /** Il giro di guardia: ogni tanto si va a vedere se l'altro ha mosso — e,
     nello stesso giro (Lavoro 6, "senza aggiungere traffico" vuol dire
     "senza un secondo timer tutto suo"), se c'è una frase di chat nuova, e
-    se il tempo del turno altrui è scaduto (Lavoro 4). */
+    se il tempo del turno altrui è scaduto (Lavoro 4).
+
+    Problema di connessione (4 settembre 2026): se Rete.nuove() fallisce si
+    conta (falliteConsecutive) invece di far finta che non ci fossero mosse
+    nuove — dopo qualche giro di fila si avvisa con un messaggio, e soprattutto
+    non si esegue mai un turno d'ufficio "alla cieca" quando l'ultimo
+    tentativo di leggere le mosse dell'altro è fallito: senza una lettura
+    riuscita non si può sapere se nel frattempo l'altro ha già mosso davvero
+    — eseguirlo comunque avrebbe fatto esattamente lo sfasamento segnalato da
+    Fabio (un giocatore che non vede quello che l'altro ha calato). */
 async function ciclaRete() {
   while (online && Rete.attiva) {
     await sleep(RITMO);
     if (!online || !Rete.attiva) return;
     if (busy || dealCount !== null || pozzettoAnim) continue;
     let arrivate = [];
-    try { arrivate = await Rete.nuove(); } catch (e) { arrivate = []; }
+    try {
+      arrivate = await Rete.nuove();
+      if (falliteConsecutive >= SOGLIA_AVVISO_CONNESSIONE && msg === MSG_CONN_INSTABILE) { say(''); render(); }
+      falliteConsecutive = 0;
+    } catch (e) {
+      arrivate = [];
+      falliteConsecutive++;
+      if (falliteConsecutive === SOGLIA_AVVISO_CONNESSIONE) { say(MSG_CONN_INSTABILE, true); render(); }
+    }
     for (const r of arrivate) {
       if (r.posto === Rete.posto) continue;      // le proprie sono già sul tavolo
       await mossaDellAltro(r.mossa);
@@ -942,9 +977,13 @@ async function ciclaRete() {
     // Solo chi aspetta controlla l'orologio dell'altro: in 1v1 è sempre e
     // solo l'altro telefono, quindi non serve nessun accordo su chi dei
     // due debba farlo — non può mai succedere che lo facciano in due.
-    if (!busy && dealCount === null && !G.handOver && G.tempo && G.turn !== HUMAN) {
+    // Mai durante una pausa, né mentre una richiesta di pausa è in sospeso
+    // (evita una gara fra "il tempo scade" e "sto chiedendo di fermarmi"),
+    // e mai se l'ultima lettura delle mosse è fallita (vedi sopra).
+    if (!busy && dealCount === null && !G.handOver && !G.paused && !G.pausaRichiesta
+      && G.tempo && G.turn !== HUMAN) {
       const scaduto = (Date.now() - turnoIniziatoAlle) / 1000 > G.tempo;
-      if (scaduto) await eseguiTurnoUfficio();
+      if (scaduto && falliteConsecutive === 0) await eseguiTurnoUfficio();
     }
   }
 }
@@ -954,6 +993,24 @@ async function mossaDellAltro(payload) {
   const { mano, ...mossa } = payload || {};
   portaAllaMano(mano);
   const p = mossa.p;
+  // Pausa (4 settembre 2026): gestita a parte, prima di tutto il resto —
+  // deve funzionare anche fra una mano e l'altra, quando G.handOver è vero
+  // e la finestra di fine mano è aperta, non solo durante un turno vero.
+  if (mossa.t === 'pq' || mossa.t === 'pa') {
+    const eraPausa = G.paused;
+    E.applicaMossa(G, mossa);
+    if (mossa.t === 'pq') {
+      mostraRichiestaPausa();
+    } else if (eraPausa && !G.paused) {
+      // La mia richiesta di ripresa è stata accettata: il tempo del turno
+      // riparte da adesso, non da prima della pausa, per non rischiare un
+      // turno d'ufficio a freddo appena si torna a giocare.
+      segnaInizioTurno();
+      if (online) avviaCronometro();
+    }
+    render();
+    return;
+  }
   if (p === undefined || G.handOver) { E.applicaMossa(G, mossa); render(); return; }
   const squadra = G.teamOf[p];
   const eraPozzetto = G.teams[squadra].pozzetto;
@@ -1041,7 +1098,7 @@ function bindOnce() {
     if (ispezionato) { ispezionato = false; return; }
     const pile = ev.target.closest('.pile[data-act]');
     if (pile) {
-      const mio = !busy && !G.handOver && G.turn === HUMAN && dealCount === null;
+      const mio = !busy && !G.handOver && !G.paused && G.turn === HUMAN && dealCount === null;
       // una carta scelta + clic sul monte scarti = la scarti
       if (pile.dataset.act === 'pile' && mio && G.phase === 'meld' && sel.size === 1) doDiscard();
       else doDraw(pile.dataset.act);
@@ -1179,7 +1236,7 @@ function after(r) {
 }
 
 async function doDraw(src) {
-  if (busy || G.turn !== HUMAN || G.phase !== 'draw') return;
+  if (busy || G.turn !== HUMAN || G.paused || G.phase !== 'draw') return;
   const da = rett(src === 'stock' ? elMazzo() : elScarti());
   const a = postoInMano();
   const quante = src === 'stock' ? 1 : Math.min(G.discard.length, 5);
@@ -2136,10 +2193,25 @@ per leggerlo per intero.</p>
 /** Menu del telefono: le azioni che sul PC stanno nella testata. */
 function menuDialog() {
   const siPuo = !busy && !online && dealCount === null && E.annullabile(G, HUMAN);
+  // Pausa (4 settembre 2026, solo online): tre stati diversi da mostrare —
+  // niente in sospeso (tasto attivo, invita a fermarsi o a riprendere),
+  // in attesa della MIA richiesta (tasto disabilitato, si aspetta l'altro),
+  // in attesa che rispondiate voi (in pratica non capita mai qui: appena
+  // arriva una richiesta si apre subito il suo dialogo dedicato — vedi
+  // mostraRichiestaPausa — quindi il menu non fa in tempo a restare aperto
+  // su questo terzo stato, ma il testo è pronto lo stesso, per sicurezza).
+  const pausaInSospesoMia = online && G.pausaRichiesta && G.pausaRichiesta.da === HUMAN;
+  const pausaInSospesoLoro = online && G.pausaRichiesta && G.pausaRichiesta.da !== HUMAN;
+  const pausaTesto = pausaInSospesoMia
+    ? (G.pausaRichiesta.versoPausa ? 'In attesa che accetti la pausa…' : 'In attesa che accetti la ripresa…')
+    : pausaInSospesoLoro
+      ? 'In attesa di una tua risposta…'
+      : (G.paused ? '▶️ Riprendi la partita' : '⏸️ Metti in pausa');
   modal('Menu', 'Tavolo da Burraco',
     `<div class="opts">
        <button class="btn" id="m-annulla" style="text-align:left" ${siPuo ? '' : 'disabled'}>
          Annulla l'ultima calata${siPuo ? '' : ` <small style="opacity:.6">(${online ? 'non online' : 'niente da annullare'})</small>`}</button>
+       ${online ? `<button class="btn" id="m-pausa" style="text-align:left" ${(pausaInSospesoMia || pausaInSospesoLoro) ? 'disabled' : ''}>${pausaTesto}</button>` : ''}
        <button class="btn" id="m-musica" style="text-align:left">Musica: <b>${Suoni.musica ? 'accesa' : 'spenta'}</b></button>
        <button class="btn" id="m-effetti" style="text-align:left">Suoni delle carte: <b>${Suoni.effetti ? 'accesi' : 'spenti'}</b></button>
        <button class="btn" id="m-tema" style="text-align:left">Cambia tema chiaro / scuro</button>
@@ -2153,6 +2225,7 @@ function menuDialog() {
     `<button class="btn ghost" id="m-ok">Chiudi</button>`);
   $('m-ok').onclick = closeModal;
   $('m-annulla').onclick = () => { closeModal(); annullaCalata(); };
+  if ($('m-pausa')) $('m-pausa').onclick = () => { closeModal(); chiediPausa(); };
   $('m-musica').onclick = () => { Suoni.cambiaMusica(); closeModal(); menuDialog(); };
   $('m-effetti').onclick = () => { Suoni.cambiaEffetti(); closeModal(); menuDialog(); };
   $('m-tema').onclick = () => { cambiaTema(); closeModal(); };
@@ -2164,6 +2237,64 @@ function menuDialog() {
   // — cancella la partita in corso così la home non la ripropone più (vedi
   // cancellaRipresa) e torna alla schermata iniziale.
   if ($('m-abbandona')) $('m-abbandona').onclick = () => { closeModal(); cancellaRipresa(); mostraHome(); };
+}
+
+/* ---------- Pausa online (4 settembre 2026) ----------
+   Richiesta di Fabio dopo un problema di connessione in una partita vera:
+   poter mettere in pausa il tavolo online, con l'accordo di entrambi sia
+   per fermarlo sia per farlo ripartire. Il motore (src/engine.js) tiene lo
+   stato vero (g.paused, g.pausaRichiesta) e lo scambia come una mossa
+   qualunque del registro online — qui c'è solo l'interfaccia: il tasto nel
+   menu per chi chiede, il dialogo con Accetta/Rifiuta per chi risponde. */
+
+/** Chi preme il tasto nel menu: chiede l'opposto dello stato attuale
+    (pausa se si sta giocando, ripresa se si è già in pausa). */
+function chiediPausa() {
+  if (!online) return;
+  const r = E.richiediPausa(G, HUMAN);
+  if (!r.ok) { say(r.error, true); render(); return; }
+  spedisciMossa({ t: 'pq', p: HUMAN });
+  save(); render();
+}
+
+/** Arrivata una richiesta dall'altro: un dialogo dedicato, non un tasto nel
+    menu — serve una risposta esplicita, sì o no, prima di poter continuare. */
+function mostraRichiestaPausa() {
+  const r = G.pausaRichiesta;
+  if (!r || r.da === HUMAN) return;   // qui arrivano solo mosse dell'altro
+  const titolo = r.versoPausa ? 'Richiesta di pausa' : 'Richiesta di ripresa';
+  const testo = r.versoPausa
+    ? `${G.names[r.da]} vuole mettere in pausa la partita.`
+    : `${G.names[r.da]} vuole riprendere la partita.`;
+  const nota = r.versoPausa
+    ? 'Finché resta in pausa nessuno dei due può muovere, ed è fermo anche il tempo del turno.'
+    : 'Si torna a giocare da dove eravate rimasti: il tempo del turno riparte da adesso, per entrambi.';
+  modal(titolo, testo, `<p class="home-nota">${nota}</p>`,
+    `<button class="btn ghost" id="m-pausa-no">Rifiuta</button>
+     <button class="btn primary" id="m-pausa-si">Accetta</button>`);
+  $('m-pausa-no').onclick = () => { closeModal(); rispondiPausaRichiesta(false); };
+  $('m-pausa-si').onclick = () => { closeModal(); rispondiPausaRichiesta(true); };
+}
+
+/** La mia risposta (sì/no) alla richiesta dell'altro. */
+function rispondiPausaRichiesta(accetta) {
+  // Se la richiesta è arrivata proprio mentre la finestra di fine mano era
+  // aperta (G.handOver ma la partita non è finita), il dialogo di pausa
+  // l'ha sostituita — la si ripropone dopo aver risposto, così non si perde
+  // il tasto "Mano successiva".
+  const eraFineMano = G.handOver && !G.finished && !G.chiusuraUfficio;
+  const eraPausa = G.paused;
+  const r = E.rispondiPausa(G, HUMAN, accetta);
+  if (!r.ok) { render(); return; }
+  spedisciMossa({ t: 'pa', p: HUMAN, accetta });
+  save();
+  // Ripresa (mia risposta sì a una richiesta di ripresa): il tempo del
+  // turno riparte da adesso, non da prima della pausa — altrimenti chi
+  // aspetta rischierebbe un turno d'ufficio quasi immediato.
+  if (eraPausa && !G.paused) { segnaInizioTurno(); if (online) avviaCronometro(); }
+  render();
+  if (eraFineMano) { finishHand(); return; }
+  if (!G.paused && G.turn === HUMAN) { say(''); annunciaTurno(); }
 }
 
 function punteggioDialog() {

@@ -321,6 +321,12 @@ function newGame(mode, opts = {}) {
     // — vedi discard()). A tre di fila la partita si chiude da sola.
     turniUfficioFila: 0,
     chiusuraUfficio: false,
+    // Pausa online (4 settembre 2026, vedi "PAUSA" più sotto): mai usata
+    // offline, contro il computer. g.paused è lo stato vero e proprio;
+    // g.pausaRichiesta è la richiesta in sospeso in attesa di una risposta
+    // dall'altro posto (null quando non c'è niente da rispondere).
+    paused: false,
+    pausaRichiesta: null,
   };
   startHand(g);
   return g;
@@ -372,6 +378,7 @@ function hasBurraco(g, team) { return g.teams[team].melds.some(m => burracoType(
 
 function draw(g, p, source) {
   if (g.handOver) return err('Mano conclusa.');
+  if (g.paused) return err('Partita in pausa.');
   if (g.turn !== p) return err('Non è il tuo turno.');
   if (g.phase !== 'draw') return err('Hai già pescato.');
   if (source === 'pile') {
@@ -493,6 +500,7 @@ function vicoloCieco(g, p, restanti, nuovo, sostituisce) {
 
 function meldNew(g, p, ids) {
   if (g.handOver) return err('Mano conclusa.');
+  if (g.paused) return err('Partita in pausa.');
   if (g.turn !== p || g.phase !== 'meld') return err('Azione non consentita ora.');
   const cards = findCards(g, p, ids);
   if (!cards) return err('Carte non valide.');
@@ -516,6 +524,7 @@ function meldNew(g, p, ids) {
 
 function addToMeld(g, p, meldId, ids) {
   if (g.handOver) return err('Mano conclusa.');
+  if (g.paused) return err('Partita in pausa.');
   if (g.turn !== p || g.phase !== 'meld') return err('Azione non consentita ora.');
   const melds = teamMelds(g, p);
   const m = melds.find(x => x.id === meldId);
@@ -544,6 +553,7 @@ function addToMeld(g, p, meldId, ids) {
 
 function discard(g, p, id, opts) {
   if (g.handOver) return err('Mano conclusa.');
+  if (g.paused) return err('Partita in pausa.');
   if (g.turn !== p || g.phase !== 'meld') return err('Devi prima pescare.');
   const c = g.hands[p].find(x => x.id === id);
   if (!c) return err('Carta non in mano.');
@@ -615,6 +625,50 @@ function turnoUfficio(g, p) {
     .sort((a, b) => a.u - b.u)[0];
   if (!scelta) return err('Nessuna carta da scartare.');
   return discard(g, p, scelta.c.id, { ufficio: true });
+}
+
+/* ---------- Pausa (online, 4 settembre 2026) ----------
+   Richiesta di Fabio dopo un problema di connessione in una partita vera:
+   poter mettere in pausa una partita online, con l'accordo di entrambi sia
+   per fermarla sia per farla ripartire (non basta che uno dei due lo
+   decida da solo). Mai usata offline: contro il computer non serve, si
+   può semplicemente lasciare l'app.
+
+   Niente stato nuovo da spedire a parte: la pausa passa da un telefono
+   all'altro come una mossa qualunque del registro online (vedi
+   applicaMossa più sotto e src/rete.js), quindi chi rientra a un tavolo
+   la ritrova già giusta con la stessa ricostruzione usata per tutto il
+   resto — non serve nessuna tabella Supabase in più.
+
+   Due mosse, sempre in coppia:
+     · richiediPausa — un posto chiede di cambiare lo stato attuale (da in
+       gioco a in pausa, o viceversa). Resta "in sospeso" (g.pausaRichiesta)
+       finché l'altro non risponde: non se ne può aprire una seconda nel
+       frattempo, da nessuno dei due lati.
+     · rispondiPausa — SOLO l'altro posto può rispondere, mai chi ha
+       chiesto (evita che un pasticcio di rete faccia "auto-approvare" una
+       propria richiesta). Un sì applica il cambio; un no lo scarta e resta
+       tutto come prima.
+   Mentre g.paused è vero, draw/meldNew/addToMeld/discard rifiutano
+   qualunque mossa (vedi i controlli in cima a ciascuna) — la UI disabilita
+   già i controlli, questo è solo il secondo livello di sicurezza, lo
+   stesso schema di g.handOver. */
+function richiediPausa(g, p) {
+  if (g.finished || g.chiusuraUfficio) return err('La partita è già finita.');
+  if (g.pausaRichiesta) return err('C\'è già una richiesta in sospeso.');
+  g.pausaRichiesta = { da: p, versoPausa: !g.paused };
+  g.log.push({ t: 'pausaRichiesta', p, versoPausa: g.pausaRichiesta.versoPausa });
+  return ok();
+}
+
+function rispondiPausa(g, p, accetta) {
+  const r = g.pausaRichiesta;
+  if (!r) return err('Nessuna richiesta di pausa in sospeso.');
+  if (r.da === p) return err('Non puoi rispondere alla tua stessa richiesta.');
+  if (accetta) g.paused = r.versoPausa;
+  g.pausaRichiesta = null;
+  g.log.push({ t: 'pausaRisposta', p, accetta: !!accetta, ora: g.paused });
+  return ok();
 }
 
 function nextTurn(g) {
@@ -694,6 +748,8 @@ function applicaMossa(g, m) {
   if (m.t === 'c') return meldNew(g, m.p, m.ids);
   if (m.t === 'a') return addToMeld(g, m.p, m.m, m.ids);
   if (m.t === 's') return discard(g, m.p, m.id, m.ufficio ? { ufficio: true } : undefined);
+  if (m.t === 'pq') return richiediPausa(g, m.p);
+  if (m.t === 'pa') return rispondiPausa(g, m.p, m.accetta);
   return err('Mossa sconosciuta: ' + m.t);
 }
 
@@ -710,6 +766,11 @@ function inizioMano(g) {
     tempo: g.tempo || null,
     turniUfficioFila: g.turniUfficioFila || 0,
     chiusuraUfficio: false,
+    // La pausa non si usa mai insieme ad "annulla" (annullabile è solo
+    // offline, la pausa solo online) — riportata comunque per coerenza,
+    // così inizioMano non perde mai uno stato che g avesse davvero.
+    paused: g.paused || false,
+    pausaRichiesta: g.pausaRichiesta || null,
   };
   startHand(b);
   return b;
@@ -1474,6 +1535,7 @@ const ENGINE = {
   solveSeq, solveSet, solveMeld, solveWith, meldCards, canAttach, burracoType, meldPoints,
   spostamentoLecito, cartaCheServe,
   newGame, startHand, nextHand, endHand, draw, meldNew, addToMeld, discard, nextTurn, turnoUfficio,
+  richiediPausa, rispondiPausa,
   teamMelds, hasBurraco, canEmptyHand, canMeldToZero, minimoDaTenere, findNewMelds, sortCards,
   LIVELLI_COMPUTER, livelloComputer, carteVisibili, puoUscireCalando, strategiaPartita,
   turnoComputer, pescaComputer, calataComputer, scartaComputer,

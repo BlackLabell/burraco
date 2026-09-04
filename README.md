@@ -7,7 +7,7 @@ con quattro livelli di difficoltà) oppure **online in due**, con un codice di q
 dettare all'altro. Gira nel browser, si installa sul telefono e contro il computer funziona
 anche senza connessione.
 
-**Versione pubblicata:** `burraco-v37` — 3 settembre 2026
+**Versione pubblicata:** `burraco-v38` — 4 settembre 2026
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server proprio, nessun
 account a pagamento, nessun dominio da comprare.
 
@@ -101,6 +101,20 @@ c'è nessuno con cui parlare.
 offline sia online, la schermata iniziale smette da sola di offrire di riprenderla o di
 rientrarci — non serve fare niente.
 
+**Pausa, con l'accordo di entrambi.** Dal menu ☰, un tasto mette in pausa il tavolo — nessuno dei
+due può più muovere, ed è fermo anche il tempo del turno — ma parte solo se l'altro accetta: un
+dialogo dedicato gli chiede sì o no. Farlo ripartire funziona allo stesso modo, di nuovo con
+l'accordo di entrambi: chi vuole riprendere chiede, l'altro accetta o rifiuta. Non serve nessuna
+connessione in più: la pausa viaggia come una mossa qualunque, quindi chi rientra a un tavolo la
+ritrova già giusta.
+
+**Se la connessione va e viene.** Dal 4 settembre 2026, se il telefono non riesce per qualche
+secondo a leggere le mosse dell'altro, l'app lo dice (un avviso sotto "Tocca a te") invece di far
+finta di niente — e soprattutto non esegue più un turno d'ufficio "alla cieca" mentre la lettura
+sta fallendo: aspetta di sapere per certo che l'altro non ha già mosso, prima di farlo al posto
+suo. Prima poteva succedere, con una connessione instabile abbastanza a lungo, che le due partite
+si sfasassero (un giocatore non vedeva quello che l'altro aveva calato davvero).
+
 ### Conto e statistiche
 
 Un conto (email e password) è facoltativo e serve a una cosa sola: portare nome e statistiche
@@ -145,7 +159,7 @@ tests/engine.test.js      motore e regole di gioco
 tests/livelli.test.js     le regole dei quattro livelli del computer, una per una
 tools/serve.js            server locale per lo sviluppo
 tools/finto-supabase.js   copia locale del servizio online, per i collaudi senza rete
-tools/simula-livelli.js   fa giocare i tre livelli fra loro centinaia di volte e conta chi vince
+tools/simula-livelli.js   fa giocare i quattro livelli fra loro centinaia di volte e conta chi vince
 .github/workflows/        test a ogni caricamento, e la sveglia del servizio online
 ```
 
@@ -216,7 +230,9 @@ In ordine di priorità (vedi il piano completo nel progetto Claude):
 - **Arbitro sul server**: guida e codice consegnati (tabella `tavoli`, funzioni SQL e una edge
   function). Prossimo passo, una volta che Fabio conferma che i tre passi della guida
   funzionano: collegare `src/rete.js` e le parti online di `src/ui.js` al nuovo sistema.
-- **Metriche minime**, appoggiate alla stessa infrastruttura dell'arbitro.
+- ~~Metriche minime~~ — fatto (`burraco-v37`), ma con uno scopo più stretto di quanto pensato
+  all'inizio: non appoggiate all'arbitro (non ancora collegato), solo le partite 1v1 offline
+  contro il Pro — vedi "Metriche: partite contro il Pro" più sopra.
 - **Pozzetti a croce** al posto della fascia centrale — solo se dopo i test con gli amici
   risulta che la fascia attuale dà davvero un problema.
 - **Verificare *Confirm email*** nel pannello Supabase (vedi sopra) prima di aprire l'app a

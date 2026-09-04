@@ -1,87 +1,99 @@
-METRICHE CONTRO IL PRO + RIMOZIONE "SEGNALA UN PROBLEMA" (burraco-v37)
-========================================================================
+TAVOLO DA BURRACO — burraco-v38 (4 settembre 2026)
+Pausa condivisa online + correzione del problema di connessione segnalato
 
-Cosa cambia in questo giro
----------------------------
-1) Tolto il tasto "Segnala un problema" (era in home e nel menu di gioco):
-   apriva il client di posta con un mailto:, cosa che non ti piaceva. Non
-   c'è nessun sostituto per ora — se in futuro vuoi comunque un modo per
-   segnalare problemi, fammelo sapere e vediamo un'alternativa che non
-   apra la posta.
+===============================================================================
+IMPORTANTE: QUESTA VOLTA NON SERVE NESSUNO SCRIPT SQL
+===============================================================================
 
-2) Nuove metriche misurate, ma solo per un caso preciso: ogni volta che tu
-   (o chi gioca con l'app) finite una partita 1 CONTRO 1, OFFLINE, CONTRO
-   IL LIVELLO PRO (il più forte, quello ritoccato il 3 settembre), l'app
-   manda da sola un piccolo riepilogo — punteggio finale, chi ha vinto,
-   quante mani, e quante volte il Pro ha preso dal monte scarti invece
-   che dal tallone (proprio il comportamento che ti aveva fatto vincere
-   2035 a 155). Serve per capire coi numeri, partita dopo partita, se la
-   correzione del 3 settembre al livello Pro sta davvero funzionando
-   contro un umano — invece di aspettare solo che tu mi racconti a voce
-   come è andata.
+A differenza di tutte le consegne precedenti, questa volta non c'è nessun
+file .sql da eseguire sul pannello Supabase. Le due novità di questa consegna
+riusano l'infrastruttura online già esistente (lo stesso "registro delle
+mosse" che oggi porta già pescate, calate e scarti da un telefono all'altro),
+quindi basta caricare i file qui dentro e va già tutto.
 
-   Non succede per nessun'altra combinazione: non online, non contro gli
-   altri tre livelli (Facile/Medio/Difficile), non in 2v2. Non c'è
-   nessuna schermata nell'app per guardare questi dati — con poche
-   partite alla volta non serve, li guardi direttamente dal pannello
-   Supabase con una query (ce n'è una pronta in sql/GUIDA.md). L'invio
-   non blocca né rallenta mai la fine di una partita: se manca la rete,
-   l'invio si perde in silenzio, non vedi niente di strano.
+===============================================================================
+COSA C'È IN QUESTO PACCHETTO
+===============================================================================
 
-PASSO 1 — Esegui lo script SQL PRIMA di pubblicare il codice
---------------------------------------------------------------
-Come sempre: pannello Supabase del progetto burraco → SQL Editor →
-New query → incolla tutto il contenuto di sql/01-metriche-pro.sql → Run.
+- src/engine.js      → sostituisce src/engine.js nel repository
+- src/ui.js           → sostituisce src/ui.js nel repository
+- sw.js                → sostituisce sw.js (alzato a VERSIONE = 'burraco-v38')
+- README.md          → sostituisce README.md (aggiornato con le novità)
+- engine.test.js     → sostituisce tests/engine.test.js (per riferimento, non
+                        serve caricarlo sul sito: è solo per chi vuole
+                        rilanciare i test in locale con "npm test")
 
-Dettagli, cosa fa esattamente lo script, e come guardare i dati raccolti:
-tutto spiegato passo-passo in sql/GUIDA.md.
+Carica questi file negli stessi percorsi nel repository GitHub (sovrascrivono
+i file attuali). Come sempre, ricordati che il caricamento da browser salta i
+file nascosti (.nojekyll, .github/workflows/) — ma questa volta non li abbiamo
+toccati, quindi non c'è nulla di nuovo da ricordarsi su quel fronte.
 
-Importante: crea solo una tabella NUOVA (metriche_pro), indipendente da
-tutto il resto — non tocca partite, mosse, chat, profili, statistiche.
-Se non lo esegui prima, il codice pubblicato prova comunque a mandare la
-metrica a fine partita, ma fallisce in silenzio (nessun errore visibile,
-solo nessun dato raccolto) finché non esegui lo script.
+===============================================================================
+1. IL PROBLEMA CHE HAI SEGNALATO IL 4 SETTEMBRE
+===============================================================================
 
-PASSO 2 — Pubblica il codice
-------------------------------
-I file di questa consegna:
-  src/ui.js               tolto "segnala un problema", aggiunta la
-                           funzione che manda la metrica a fine partita
-  src/rete.js              aggiunta la chiamata verso Supabase
-  sw.js                    versione alzata a burraco-v37
-  README.md                aggiornato (versione, novità, nuova sezione
-                           "Metriche: partite contro il Pro")
-  tools/finto-supabase.js  (solo per i miei collaudi in locale, non ti
-                           serve per pubblicare — incluso per completezza)
+Hai scritto: "Dopo l'aggiornamento del 3 settembre, nell'online non vedo più
+le carte dell'avversario. Il tempo sembrava scadere sempre. L'avversario mi
+ha mandato lo screen e non ha visto quello che ho calato io."
 
-Sostituisci questi file nel repository (stesso posto di sempre) e
-pubblica come fai di solito. Gli altri file dell'app (src/engine.js,
-src/conto.js, ecc.) non sono cambiati in questo giro.
+Leggendo il codice ho trovato un punto debole reale che spiega esattamente
+questo scenario: quando la lettura delle mosse dell'altro giocatore falliva
+(per esempio per una connessione che va e viene un attimo), l'errore veniva
+ignorato senza dirlo a nessuno. Se quel fallimento durava quanto un intero
+turno, il tuo telefono eseguiva da solo un "turno d'ufficio" per conto
+dell'avversario (come se lui avesse lasciato scadere il tempo) — ma se
+nel frattempo l'avversario aveva davvero giocato, le due partite restavano
+disallineate da quel momento in poi. Corrisponde bene a quello che hai visto.
 
-Come vedere i dati raccolti
-------------------------------
-Pannello Supabase → SQL Editor → New query, e una query come:
+Cosa ho corretto in burraco-v38:
+- Il turno d'ufficio automatico ora NON scatta più se l'ultima lettura delle
+  mosse dell'altro è fallita (aspetta che la connessione torni prima di
+  agire "alla cieca").
+- Dopo qualche lettura fallita di fila vedrai un avviso a schermo
+  ("Connessione instabile: non riesco ad aggiornare la partita. Riprovo…")
+  invece del silenzio di prima.
 
-  select creata, nome, punti_umano, punti_computer, vincitore,
-         turni_totali, prese_monte_computer, prese_tallone_computer
-  from public.metriche_pro
-  order by creata desc
-  limit 50;
+QUESTO NON È UNA DIAGNOSI CERTA. Da qui non ho potuto rigiocare una vera
+partita su due telefoni né guardare i log veri di Supabase. Ho scritto
+un'analisi più dettagliata, con una lista di cose che puoi controllare tu
+per capire se il problema si ripresenta e da cosa dipende davvero, nel
+documento "problema-connessione-pausa" del progetto Claude (in breve: lo
+stato dell'automazione sveglia.yml su GitHub, i log del pannello Supabase,
+un possibile disallineamento fra la versione salvata su ciascun telefono —
+in quel caso chiudere e riaprire davvero l'app prima di una partita
+importante aiuta — e la rete dei telefoni stessi).
 
-Altre query utili (per esempio la percentuale di vittorie del Pro e
-quanto prende in media dal monte) sono in sql/GUIDA.md.
+===============================================================================
+2. LA PAUSA CONDIVISA CHE HAI CHIESTO
+===============================================================================
 
-Verifica fatta
------------------
-npm test: 109/109, invariato — nessun cambio a src/engine.js in questo
-giro, le metriche si costruiscono leggendo quello che il motore registra
-già da solo (g.log) per tutta la partita.
-Verificato anche a mano: la logica di conteggio (prese dal monte contro
-prese dal tallone) su un log costruito ad hoc, e la chiamata vera
-Rete.mandaMetricaPro() contro una copia locale di Supabase estesa apposta
-— non solo il motore, anche il pezzo che parla con la rete.
+"Possibilità di mettere in pausa una partita da entrambi."
 
-Se qualcosa non torna
-------------------------
-Come sempre, fammi sapere cosa vedi (o non vedi) e guardiamo insieme cosa
-è successo — stavolta però senza dover aprire la posta per dirmelo.
+Ho aggiunto un tasto Pausa/Riprendi nel menu (☰), con questa regola, come
+mi hai confermato: NESSUNO dei due può mettere in pausa o far ripartire da
+solo. Funziona così, sia per mettere in pausa sia per riprendere:
+
+1. Un giocatore tocca ☰ → Pausa (o Riprendi, se la partita è già in pausa).
+2. All'altro giocatore compare una richiesta con due tasti: Accetta / Rifiuta.
+3. Solo se accetta, la pausa (o la ripresa) parte davvero per entrambi.
+   Se rifiuta, tutto resta come prima.
+
+Mentre la partita è in pausa: nessuno dei due può pescare, calare o
+scartare, e il tempo del turno resta fermo (non scade).
+
+===============================================================================
+3. COME HO VERIFICATO
+===============================================================================
+
+- 9 nuovi test automatici sul motore di gioco (richiesta/accettazione/
+  rifiuto della pausa, impossibilità di muovere durante la pausa, tutti i
+  casi limite) — in tutto ora 118 test, tutti verdi (erano 109).
+- Una prova end-to-end con due sessioni di gioco vere (due "telefoni"
+  simulati) che aprono un tavolo online, chiedono la pausa, l'altro accetta,
+  poi chiedono la ripresa, poi provano anche un rifiuto — tutto verificato
+  passo passo, incluso che durante la pausa il tempo del turno non scada.
+
+===============================================================================
+Domande o problemi? Fammi sapere com'è andata la prossima volta che giochi
+online — soprattutto se rivedi il messaggio di "connessione instabile".
+===============================================================================
