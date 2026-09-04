@@ -1,99 +1,75 @@
-TAVOLO DA BURRACO — burraco-v38 (4 settembre 2026)
-Pausa condivisa online + correzione del problema di connessione segnalato
+TAVOLO DA BURRACO — burraco-v39 (4 settembre 2026)
+Segnala un problema, di nuovo — ma senza email
 
 ===============================================================================
-IMPORTANTE: QUESTA VOLTA NON SERVE NESSUNO SCRIPT SQL
+QUESTA VOLTA SERVE UNO SCRIPT SQL (uno nuovo, mai visto prima)
 ===============================================================================
 
-A differenza di tutte le consegne precedenti, questa volta non c'è nessun
-file .sql da eseguire sul pannello Supabase. Le due novità di questa consegna
-riusano l'infrastruttura online già esistente (lo stesso "registro delle
-mosse" che oggi porta già pescate, calate e scarti da un telefono all'altro),
-quindi basta caricare i file qui dentro e va già tutto.
+A differenza della consegna della pausa (burraco-v38), questa volta serve eseguire uno script
+SQL nuovo sul pannello Supabase prima che il tasto "Segnala" funzioni davvero: sql/01-segnalazioni.sql,
+con la sua guida sql/GUIDA.md. Finché non lo esegui, il tasto non rompe nulla: mostra solo un
+avviso "Non sono riuscito a inviarla" quando qualcuno prova a mandare una segnalazione.
 
 ===============================================================================
 COSA C'È IN QUESTO PACCHETTO
 ===============================================================================
 
-- src/engine.js      → sostituisce src/engine.js nel repository
-- src/ui.js           → sostituisce src/ui.js nel repository
-- sw.js                → sostituisce sw.js (alzato a VERSIONE = 'burraco-v38')
-- README.md          → sostituisce README.md (aggiornato con le novità)
-- engine.test.js     → sostituisce tests/engine.test.js (per riferimento, non
-                        serve caricarlo sul sito: è solo per chi vuole
-                        rilanciare i test in locale con "npm test")
+- src/ui.js            → sostituisce src/ui.js nel repository
+- src/rete.js           → sostituisce src/rete.js nel repository
+- styles.css             → sostituisce styles.css nel repository
+- sw.js                  → sostituisce sw.js (alzato a VERSIONE = 'burraco-v39')
+- README.md            → sostituisce README.md (aggiornato con la novità)
+- sql/01-segnalazioni.sql → NUOVO script da eseguire una volta sola su Supabase
+- sql/GUIDA.md          → i passi per eseguirlo, con anche una query per leggere le segnalazioni
 
-Carica questi file negli stessi percorsi nel repository GitHub (sovrascrivono
-i file attuali). Come sempre, ricordati che il caricamento da browser salta i
-file nascosti (.nojekyll, .github/workflows/) — ma questa volta non li abbiamo
-toccati, quindi non c'è nulla di nuovo da ricordarsi su quel fronte.
+Carica i file di codice (src/, styles.css, sw.js, README.md) negli stessi percorsi nel
+repository GitHub. Poi segui sql/GUIDA.md per lo script SQL — un solo passaggio, cinque minuti.
 
 ===============================================================================
-1. IL PROBLEMA CHE HAI SEGNALATO IL 4 SETTEMBRE
+1. COSA HAI CHIESTO
 ===============================================================================
 
-Hai scritto: "Dopo l'aggiornamento del 3 settembre, nell'online non vedo più
-le carte dell'avversario. Il tempo sembrava scadere sempre. L'avversario mi
-ha mandato lo screen e non ha visto quello che ho calato io."
+Nello stesso messaggio in cui segnalavi il problema di connessione, hai scritto anche: "voglio
+un link diverso da github e un segnala problemi senza mandare un mail a me, quando segnali un
+problemi apre una chat di gioco che salva il commento su supabase".
 
-Leggendo il codice ho trovato un punto debole reale che spiega esattamente
-questo scenario: quando la lettura delle mosse dell'altro giocatore falliva
-(per esempio per una connessione che va e viene un attimo), l'errore veniva
-ignorato senza dirlo a nessuno. Se quel fallimento durava quanto un intero
-turno, il tuo telefono eseguiva da solo un "turno d'ufficio" per conto
-dell'avversario (come se lui avesse lasciato scadere il tempo) — ma se
-nel frattempo l'avversario aveva davvero giocato, le due partite restavano
-disallineate da quel momento in poi. Corrisponde bene a quello che hai visto.
-
-Cosa ho corretto in burraco-v38:
-- Il turno d'ufficio automatico ora NON scatta più se l'ultima lettura delle
-  mosse dell'altro è fallita (aspetta che la connessione torni prima di
-  agire "alla cieca").
-- Dopo qualche lettura fallita di fila vedrai un avviso a schermo
-  ("Connessione instabile: non riesco ad aggiornare la partita. Riprovo…")
-  invece del silenzio di prima.
-
-QUESTO NON È UNA DIAGNOSI CERTA. Da qui non ho potuto rigiocare una vera
-partita su due telefoni né guardare i log veri di Supabase. Ho scritto
-un'analisi più dettagliata, con una lista di cose che puoi controllare tu
-per capire se il problema si ripresenta e da cosa dipende davvero, nel
-documento "problema-connessione-pausa" del progetto Claude (in breve: lo
-stato dell'automazione sveglia.yml su GitHub, i log del pannello Supabase,
-un possibile disallineamento fra la versione salvata su ciascun telefono —
-in quel caso chiudere e riaprire davvero l'app prima di una partita
-importante aiuta — e la rete dei telefoni stessi).
+Sul link diverso da GitHub ti ho chiesto se preferivi un dominio vero a pagamento (~10-15€/anno,
+collegato comunque a GitHub Pages) o un indirizzo gratuito su un altro servizio come Vercel o
+Netlify. Mi hai risposto di rimandarlo a quando inizi a monetizzare — quindi per ora resta tutto
+com'è (blacklabell.github.io/burraco), non ho toccato nulla su questo fronte. L'ho scritto nel
+progetto Claude (documento "segnala-problema") così non si riparte da zero quando arriverà il
+momento.
 
 ===============================================================================
-2. LA PAUSA CONDIVISA CHE HAI CHIESTO
+2. SEGNALA UN PROBLEMA, SENZA EMAIL
 ===============================================================================
 
-"Possibilità di mettere in pausa una partita da entrambi."
+Il tasto "🐞 Segnala" (schermata iniziale) e "Segnala un problema" (menu ☰ durante una partita)
+sono tornati — erano stati tolti il 3 settembre perché aprivano un'email che non ti piaceva.
+Stavolta funzionano così:
 
-Ho aggiunto un tasto Pausa/Riprendi nel menu (☰), con questa regola, come
-mi hai confermato: NESSUNO dei due può mettere in pausa o far ripartire da
-solo. Funziona così, sia per mettere in pausa sia per riprendere:
+1. Tocchi il tasto: si apre un dialogo — un messaggio dell'app, poi un campo di testo libero
+   dove scrivi cosa è successo.
+2. Tocchi Invia: il messaggio va dritto a una tabella nuova su Supabase (si chiama
+   "segnalazioni"), insieme a versione dell'app, dispositivo, e — se stavi giocando — le ultime
+   15 mosse della partita, allegate da sole (esattamente come faceva la vecchia email).
+3. Nessuna email si apre, in nessun momento.
 
-1. Un giocatore tocca ☰ → Pausa (o Riprendi, se la partita è già in pausa).
-2. All'altro giocatore compare una richiesta con due tasti: Accetta / Rifiuta.
-3. Solo se accetta, la pausa (o la ripresa) parte davvero per entrambi.
-   Se rifiuta, tutto resta come prima.
-
-Mentre la partita è in pausa: nessuno dei due può pescare, calare o
-scartare, e il tempo del turno resta fermo (non scade).
+Per leggere le segnalazioni arrivate: apri il pannello Supabase → SQL Editor, e lancia la query
+di esempio che trovi in sql/GUIDA.md. Non c'è (ancora) una schermata dentro l'app per questo —
+come già per le metriche contro il Pro, con pochi messaggi alla volta una query diretta basta.
 
 ===============================================================================
 3. COME HO VERIFICATO
 ===============================================================================
 
-- 9 nuovi test automatici sul motore di gioco (richiesta/accettazione/
-  rifiuto della pausa, impossibilità di muovere durante la pausa, tutti i
-  casi limite) — in tutto ora 118 test, tutti verdi (erano 109).
-- Una prova end-to-end con due sessioni di gioco vere (due "telefoni"
-  simulati) che aprono un tavolo online, chiedono la pausa, l'altro accetta,
-  poi chiedono la ripresa, poi provano anche un rifiuto — tutto verificato
-  passo passo, incluso che durante la pausa il tempo del turno non scada.
+Un collaudo end-to-end con una copia locale di Supabase e la UI vera cliccata come farebbe una
+persona: invio con il campo vuoto rifiutato subito (senza nemmeno provare a contattare la rete),
+invio dalla schermata iniziale, invio dal menu durante una partita con una mossa vera appena
+fatta (le mosse allegate infatti risultano diverse/più ricche), e in tutti i casi versione e
+dispositivo arrivati correttamente dall'altra parte.
 
 ===============================================================================
-Domande o problemi? Fammi sapere com'è andata la prossima volta che giochi
-online — soprattutto se rivedi il messaggio di "connessione instabile".
+Domande o problemi? Prova il tasto "Segnala" col nuovo sistema e fammi sapere se il messaggio ti
+arriva come previsto una volta eseguito lo script SQL.
 ===============================================================================

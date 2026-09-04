@@ -1,54 +1,47 @@
-# Metriche contro il Pro — cosa eseguire sul tuo Supabase
+# Guida — eseguire lo script SQL delle segnalazioni
 
-Un solo script, stesso metodo di sempre: pannello Supabase, SQL Editor, incolla, Run.
+Un solo script, `01-segnalazioni.sql`, da eseguire **una volta sola** prima di pubblicare la
+consegna `lavoro-segnala-problema`. Finché non lo esegui, il tasto "🐞 Segnala" nell'app non
+romperà nulla: il messaggio semplicemente non riuscirà a essere inviato (mostra un avviso
+"Non sono riuscito a inviarla…") finché lo script non è stato eseguito.
 
-## Passo 1 — `01-metriche-pro.sql`
+## Passi
 
-1. Apri il pannello Supabase del progetto **burraco**.
-2. Vai su **SQL Editor** → **New query**.
-3. Incolla tutto il contenuto di `01-metriche-pro.sql`.
-4. **Run**.
+1. Vai sul pannello di Supabase del progetto (quello di sempre, lo stesso di conto, statistiche
+   e gioco online).
+2. Nel menu a sinistra, apri **SQL Editor**.
+3. Clicca **New query**.
+4. Apri il file `01-segnalazioni.sql` di questa consegna, copia tutto il contenuto e incollalo
+   nella finestra dell'editor.
+5. Clicca **Run** (o il tasto play in alto a destra dell'editor).
+6. Deve comparire "Success. No rows returned" (o simile) senza errori in rosso.
 
-Cosa fa: crea una tabella nuova `metriche_pro` (indipendente da tutto il resto — non tocca
-`partite`, `mosse`, `chat`, `profili`, `statistiche`) e una funzione, `manda_metrica_pro`, che
-l'app chiama da sola a fine partita. Nessuna delle tabelle o funzioni esistenti viene toccata.
+Fatto: da questo momento il tasto "Segnala un problema" nell'app funziona.
 
-## Dopo aver eseguito lo script
+## Come leggere le segnalazioni arrivate
 
-Nessun riavvio da fare: appena pubblichi il codice di questo zip (`src/rete.js`, `src/ui.js`),
-ogni volta che tu (o chi gioca con l'app) finisce una partita **1 contro 1, offline, contro il
-livello Pro** (il più forte), l'app manda da sola un piccolo riepilogo — punteggio, chi ha
-vinto, quante volte il Pro ha preso dal monte scarti invece che dal tallone. Non succede per
-nessun'altra combinazione (non online, non contro gli altri tre livelli, non in 2v2 per ora) e
-non blocca né rallenta mai la partita: se manca la rete, la metrica si perde in silenzio, non
-succede niente di visibile.
-
-## Come guardare i dati raccolti
-
-Non c'è una schermata nell'app apposta (con poche partite alla volta non serve): apri **SQL
-Editor** → **New query** sul pannello Supabase e incolla una query come questa:
+Non c'è (ancora) una schermata nell'app per guardarle: con poche segnalazioni alla volta, la via
+più semplice è una query diretta dallo stesso SQL Editor:
 
 ```sql
-select creata, nome, punti_umano, punti_computer, vincitore,
-       turni_totali, prese_monte_computer, prese_tallone_computer, versione
-from public.metriche_pro
-order by creata desc
+select creato_a, testo, versione, dispositivo, mosse
+from segnalazioni
+order by creato_a desc
 limit 50;
 ```
 
-Un colpo d'occhio utile — quante volte su dieci il Pro vince, e quanto prende dal monte in
-media:
+Ogni riga ha: quando è arrivata, il testo scritto dalla persona, la versione dell'app in quel
+momento, una riga con dispositivo e dimensioni della finestra, e — se chi ha scritto stava
+giocando — le ultime 15 mosse della partita in corso (utile per capire cosa stava succedendo,
+come già facevano le vecchie email).
+
+## Se in futuro serve ripulire le segnalazioni vecchie
+
+Non c'è nessuna pulizia automatica per questa tabella (a differenza di `pulisci_tavoli()`, che
+gira ogni notte per i tavoli online): le segnalazioni sono poche e a bassissimo volume, quindi
+per ora si tengono tutte. Se dovessero accumularsi troppe, una query manuale come questa le
+cancella oltre i 6 mesi:
 
 ```sql
-select
-  count(*) as partite,
-  round(100.0 * count(*) filter (where vincitore = 'computer') / count(*), 1) as pro_vince_pct,
-  round(avg(prese_monte_computer), 1) as prese_monte_medie,
-  round(avg(prese_monte_computer::float / nullif(prese_monte_computer + prese_tallone_computer, 0)) * 100, 1) as pct_prese_dal_monte
-from public.metriche_pro;
+delete from segnalazioni where creato_a < now() - interval '6 months';
 ```
-
-## Se vuoi tornare indietro
-
-`drop table public.metriche_pro;` cancella tutto (tabella e dati). Non serve normalmente, ma è
-lì se serve.

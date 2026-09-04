@@ -680,7 +680,23 @@ details.rules b{color:var(--ink)}
   padding:8px 10px; width:100%;
 }
 .campo-nome input:focus{outline:2px solid var(--accent-2); outline-offset:1px}
+.campo-nome textarea{
+  font:inherit; font-size:15px; color:var(--ink); resize:vertical; min-height:80px;
+  background:var(--panel); border:1px solid var(--edge); border-radius:2px;
+  padding:8px 10px; width:100%;
+}
+.campo-nome textarea:focus{outline:2px solid var(--accent-2); outline-offset:1px}
 .home-nota{margin:0; font-size:11.5px; line-height:1.45; color:var(--ink-faint)}
+
+/* ── Segnala un problema (richiesto di nuovo il 4 settembre 2026) ──────
+   Il dialogo è in stile chat: una bolla col messaggio dell'app, poi il
+   campo libero. Sta dentro una finestra modale, ferma: niente del
+   posizionamento assoluto del fumetto in partita (vedi .fumetto sopra). */
+.segnala-bolla{
+  background:var(--panel-2); border:1px solid var(--edge); border-radius:14px 14px 14px 4px;
+  padding:10px 12px; font-size:13px; line-height:1.4; color:var(--ink);
+}
+.segnala-bolla-ok{border-color:var(--accent-2); color:var(--accent-2)}
 
 /* ── Gioco online ──────────────────────────────────────────────
    Il codice del tavolo si detta al telefono: va letto a colpo d'occhio

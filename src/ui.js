@@ -721,6 +721,7 @@ function mostraHome() {
         <button class="btn ghost mini" data-h="conto">${Conto.dentro
           ? `👤 ${esc(Conto.nome || 'Giocatore')}`
           : '👤 Accedi'}</button>
+        <button class="btn ghost mini" data-h="problema" title="Segnala un problema">🐞 Segnala</button>
       </div>
       <div class="home-testa">
         <h1>Tavolo da Burraco</h1>
@@ -1085,6 +1086,7 @@ function bindOnce() {
     else if (b.dataset.h === 'online') onlineDialog();
     else if (b.dataset.h === 'stat') statDialog();
     else if (b.dataset.h === 'conto') contoDialog();
+    else if (b.dataset.h === 'problema') segnalaProblema();
     else if (b.dataset.h === 'rientra') rientraOnline();
     else if (b.dataset.h === 'regole') rulesDialog();
     else if (b.dataset.h === 'tema') cambiaTema();
@@ -2216,6 +2218,7 @@ function menuDialog() {
        <button class="btn" id="m-effetti" style="text-align:left">Suoni delle carte: <b>${Suoni.effetti ? 'accesi' : 'spenti'}</b></button>
        <button class="btn" id="m-tema" style="text-align:left">Cambia tema chiaro / scuro</button>
        <button class="btn" id="m-reg" style="text-align:left">Regolamento ufficiale</button>
+       <button class="btn" id="m-problema" style="text-align:left">Segnala un problema</button>
        <button class="btn" id="m-nuova" style="text-align:left">Nuova partita</button>
        <button class="btn primary" id="m-home" style="text-align:left">Torna alla schermata iniziale</button>
        ${online
@@ -2230,6 +2233,7 @@ function menuDialog() {
   $('m-effetti').onclick = () => { Suoni.cambiaEffetti(); closeModal(); menuDialog(); };
   $('m-tema').onclick = () => { cambiaTema(); closeModal(); };
   $('m-reg').onclick = () => { closeModal(); rulesDialog(); };
+  $('m-problema').onclick = () => { closeModal(); segnalaProblema(); };
   $('m-nuova').onclick = () => { closeModal(); newGameDialog(); };
   $('m-home').onclick = () => { closeModal(); save(); mostraHome(); };
   if ($('m-esci')) $('m-esci').onclick = () => { closeModal(); chiudiOnline(); mostraHome(); };
@@ -2343,10 +2347,8 @@ function rulesDialog() {
 
 /* ---------- Versione dell'app ----------
    Si legge da sw.js — un solo posto dove sta scritta. Usata dalle metriche
-   (vedi "Metriche: partite contro il Pro" più sotto). Il tasto "Segnala un
-   problema" che usava questa stessa funzione per aprire un'email è stato
-   tolto il 3 settembre 2026 su richiesta di Fabio: non gli piaceva che
-   aprisse il client di posta. */
+   (vedi "Metriche: partite contro il Pro" più sotto) e da "Segnala un
+   problema" (più sotto ancora). */
 async function versioneApp() {
   try {
     const r = await fetch('./sw.js', { cache: 'no-store' });
@@ -2395,6 +2397,60 @@ function inviaMetricaPro() {
       Rete.mandaMetricaPro({ ...dati, versione }).catch(() => { });
     });
   } catch (e) { /* mai bloccare la fine partita per una metrica */ }
+}
+
+/* ---------- Segnala un problema (richiesto di nuovo il 4 settembre 2026) ----------
+   Il vecchio tasto (30 agosto - 3 settembre) apriva un'email verso Fabio:
+   non gli piaceva. Fabio l'ha richiesto di nuovo lo stesso 4 settembre,
+   insieme alla segnalazione del problema di connessione, ma stavolta senza
+   client di posta — "una chat di gioco che salva il commento su Supabase".
+   Qui "chat" è lo stile del dialogo (un messaggio dell'app, poi un campo
+   libero), non la chat del Lavoro 6 (quella resta solo frasi pronte, solo
+   online, solo fra i due giocatori): qui il testo è libero e va a Fabio,
+   non all'avversario. Versione, dispositivo e le ultime 15 mosse (se si
+   sta giocando) si allegano da soli, come già faceva il vecchio mailto —
+   vedi `versioneApp()` sopra e `logLine()` per le mosse. Nessun tavolo
+   online richiesto: basta che il telefono abbia rete verso Supabase, quindi
+   funziona anche da fermi sulla home o in mezzo a una partita offline.
+   `Rete.mandaSegnalazione()` (src/rete.js) scrive nella tabella nuova
+   `segnalazioni` tramite la funzione `manda_segnalazione` (SECURITY
+   DEFINER) — vedi sql/01-segnalazioni.sql nella consegna. */
+function segnalaProblema() {
+  modal('Segnala un problema', 'Resta qui dentro: niente email',
+    `<div class="segnala-bolla">Scrivi cosa è successo: alleghiamo da soli versione,
+       dispositivo e le ultime mosse, se stai giocando.</div>
+     <label class="campo-nome" style="margin-top:10px"><span>Il tuo messaggio</span>
+       <textarea id="sg-testo" rows="4" maxlength="2000" placeholder="Cosa è successo?"></textarea>
+     </label>
+     <p class="home-nota" id="sg-avviso" style="margin-top:8px; min-height:1.3em"></p>`,
+    `<button class="btn ghost" id="sg-annulla">Annulla</button>
+     <button class="btn primary" id="sg-invia">Invia</button>`);
+  $('sg-annulla').onclick = closeModal;
+  $('sg-invia').onclick = () => inviaSegnalazione();
+}
+
+async function inviaSegnalazione() {
+  const campo = $('sg-testo'), avviso = $('sg-avviso'), invia = $('sg-invia'), annulla = $('sg-annulla');
+  const testo = (campo.value || '').trim();
+  if (!testo) { avviso.textContent = 'Scrivi qualcosa prima di inviare.'; avviso.style.color = 'var(--red)'; return; }
+  invia.disabled = true; annulla.disabled = true;
+  avviso.style.color = ''; avviso.textContent = 'Invio…';
+  try {
+    const versione = await versioneApp();
+    const dispositivo = `${navigator.userAgent} — finestra ${window.innerWidth}×${window.innerHeight}`;
+    const mosse = (G && Array.isArray(G.log) && G.log.length)
+      ? G.log.slice(-15).map(e => (logLine(e).h || '').replace(/<[^>]+>/g, '')).filter(Boolean).join('\n')
+      : '';
+    await Rete.mandaSegnalazione({ testo, versione, dispositivo, mosse });
+    modal('Segnala un problema', 'Resta qui dentro: niente email',
+      `<div class="segnala-bolla segnala-bolla-ok">Grazie, l'ho ricevuta.</div>`,
+      `<button class="btn primary" id="sg-ok">Chiudi</button>`);
+    $('sg-ok').onclick = closeModal;
+  } catch (e) {
+    avviso.style.color = 'var(--red)';
+    avviso.textContent = 'Non sono riuscito a inviarla: controlla la connessione e riprova.';
+    invia.disabled = false; annulla.disabled = false;
+  }
 }
 
 /* ---------- Avvio ---------- */

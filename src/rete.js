@@ -200,6 +200,27 @@ export const Rete = {
       p_versione: dati.versione || '',
     });
   },
+
+  /**
+   * Segnalazione di un problema (richiesta di nuovo il 4 settembre 2026,
+   * dopo che il vecchio tasto — un mailto — era stato tolto il 3 settembre
+   * perché a Fabio non piaceva aprire il client di posta). Stavolta il
+   * testo libero scritto dal giocatore, con versione/dispositivo/ultime
+   * mosse allegati da src/ui.js, va dritto su Supabase: nessuna email,
+   * nessun tavolo coinvolto — funziona anche senza essere in una partita
+   * online, basta che il telefono abbia rete verso Supabase. Stesso schema
+   * di sicurezza di ogni altra scrittura di questo progetto: RLS acceso,
+   * nessuna policy, unico accesso tramite `manda_segnalazione`
+   * (SECURITY DEFINER) — vedi sql/01-segnalazioni.sql.
+   */
+  async mandaSegnalazione(dati) {
+    return chiama('manda_segnalazione', {
+      p_testo: (dati && dati.testo) || '',
+      p_versione: (dati && dati.versione) || '',
+      p_dispositivo: (dati && dati.dispositivo) || '',
+      p_mosse: (dati && dati.mosse) || '',
+    });
+  },
 };
 
 export default Rete;

@@ -7,7 +7,7 @@ con quattro livelli di difficoltà) oppure **online in due**, con un codice di q
 dettare all'altro. Gira nel browser, si installa sul telefono e contro il computer funziona
 anche senza connessione.
 
-**Versione pubblicata:** `burraco-v38` — 4 settembre 2026
+**Versione pubblicata:** `burraco-v39` — 4 settembre 2026
 **Costo di gestione: zero.** Nessuna dipendenza da installare, nessun server proprio, nessun
 account a pagamento, nessun dominio da comprare.
 
@@ -134,12 +134,22 @@ corretta la sua eccessiva aggressività nel prendere dal monte scarti (vedi
 `claude/offline-livelli-ia.md`). Niente dashboard nell'app: i dati si guardano dal pannello
 Supabase, con una query SQL (vedi la guida consegnata insieme allo script).
 
+### Segnala un problema
+
+Dal tasto **🐞 Segnala** nella schermata iniziale, o da **Segnala un problema** nel menu ☰
+durante una partita: si apre un dialogo in stile chat — un messaggio dell'app, poi un campo
+libero — e il testo scritto lì va dritto a Supabase, senza aprire nessuna email. Versione
+dell'app, dispositivo e (se si stava giocando) le ultime 15 mosse si allegano da soli, come già
+faceva il vecchio tasto. Il primo tasto «segnala un problema» (un `mailto:`) era stato tolto il 3
+settembre 2026 su richiesta di Fabio — non gli piaceva che aprisse il client di posta — e
+richiesto di nuovo il 4 settembre, stavolta così. Non serve un tavolo online né un conto: basta
+che il telefono abbia rete verso Supabase. Richiede lo script SQL `01-segnalazioni.sql`, eseguito
+una volta sola dal pannello Supabase (guida passo-passo nella consegna).
+
 ### Il resto
 
 Login in alto a sinistra, tema chiaro e scuro (con buon contrasto in entrambi), installabile sul
 telefono come un'app vera (icona propria, schermo intero, funziona in aereo contro il computer).
-Il tasto «segnala un problema» (apriva un'email) è stato tolto il 3 settembre 2026 su richiesta
-di Fabio — non gli piaceva che aprisse il client di posta.
 
 ## Cosa c'è sotto
 
